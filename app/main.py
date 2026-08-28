@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 from fastapi import FastAPI, Request, Query, HTTPException, Response
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from .database import registrar_mensagem, salvar_conversa
@@ -27,6 +28,88 @@ class MensagemTeste(BaseModel):
 
 @app.get("/")
 def home():
+
+@app.get("/coexistencia", response_class=HTMLResponse)
+def coexistencia():
+    return """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Elo - WhatsApp Coexistência</title>
+</head>
+
+<body style="font-family:Arial; max-width:700px; margin:60px auto; text-align:center;">
+
+    <h2>Elo Ambientes Planejados</h2>
+
+    <p>
+        Vincular WhatsApp Business com a Elo IA
+    </p>
+
+    <button
+        onclick="launchWhatsAppSignup()"
+        style="
+            background:#25D366;
+            color:white;
+            border:none;
+            padding:15px 25px;
+            font-size:17px;
+            border-radius:8px;
+            cursor:pointer;
+        ">
+        Conectar WhatsApp Business
+    </button>
+
+    <script>
+        window.fbAsyncInit = function() {
+            FB.init({
+                appId: '1748103033006020',
+                autoLogAppEvents: true,
+                xfbml: true,
+                version: 'v23.0'
+            });
+        };
+
+        (function(d, s, id) {
+            var js, fjs = d.getElementsByTagName(s)[0];
+
+            if (d.getElementById(id)) {
+                return;
+            }
+
+            js = d.createElement(s);
+            js.id = id;
+            js.src = "https://connect.facebook.net/pt_BR/sdk.js";
+            fjs.parentNode.insertBefore(js, fjs);
+
+        }(document, 'script', 'facebook-jssdk'));
+
+        function launchWhatsAppSignup() {
+
+            FB.login(function(response) {
+
+                console.log(response);
+
+            }, {
+                config_id: '912441148600105',
+
+                response_type: 'code',
+
+                override_default_response_type: true,
+
+                extras: {
+                    setup: {},
+                    featureType: 'whatsapp_business_app_onboarding',
+                    sessionInfoVersion: '3'
+                }
+            });
+        }
+    </script>
+
+</body>
+</html>
+"""
     return {
         "status": "online",
         "brand": "Elo Ambientes Planejados",
