@@ -28,6 +28,12 @@ class MensagemTeste(BaseModel):
 
 @app.get("/")
 def home():
+    return {
+        "status": "online",
+        "brand": "Elo Ambientes Planejados",
+        "service": "IA + Supabase"
+    }
+
 
 @app.get("/coexistencia", response_class=HTMLResponse)
 def coexistencia():
@@ -88,7 +94,6 @@ def coexistencia():
         function launchWhatsAppSignup() {
 
             FB.login(function(response) {
-
                 console.log(response);
 
             }, {
@@ -110,11 +115,6 @@ def coexistencia():
 </body>
 </html>
 """
-    return {
-        "status": "online",
-        "brand": "Elo Ambientes Planejados",
-        "service": "IA + Supabase"
-    }
 
 
 @app.post("/teste/mensagem")
@@ -145,6 +145,8 @@ def teste_mensagem(dados: MensagemTeste):
         "mensagem_cliente": dados.mensagem,
         "resposta_ia": resposta
     }
+
+
 @app.get("/webhook")
 async def verificar_webhook(
     hub_mode: str = Query(None, alias="hub.mode"),
