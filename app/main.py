@@ -1,4 +1,8 @@
 import os
+import json
+import urllib.parse
+import urllib.request
+import urllib.error
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
@@ -13,11 +17,14 @@ from .meta import send_whatsapp_text
 
 
 META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN", "")
+META_APP_ID = os.getenv("META_APP_ID", "1748103033006020")
+META_APP_SECRET = os.getenv("META_APP_SECRET", "")
+META_GRAPH_VERSION = os.getenv("META_GRAPH_VERSION", "v23.0")
 
 
 app = FastAPI(
     title="Elo AI Agent",
-    version="0.2.0"
+    version="0.3.0"
 )
 
 
@@ -30,6 +37,101 @@ class MensagemTeste(BaseModel):
 
 class CoexistenciaCallback(BaseModel):
     code: str
+    waba_id: str | None = None
+    phone_number_id: str | None = None
+    business_id: str | None = None
+
+
+def trocar_codigo_por_token(code: str) -> str:
+    """
+    Troca o código temporário do Facebook Login for Business por um
+    access token no SERVIDOR.
+
+    O token nunca é devolvido ao navegador e nunca é gravado em log.
+    """
+
+    if not META_APP_SECRET:
+        raise HTTPException(
+            status_code=500,
+            detail="META_APP_SECRET não está configurado no servidor."
+        )
+
+    parametros = urllib.parse.urlencode(
+        {
+            "client_id": META_APP_ID,
+            "client_secret": META_APP_SECRET,
+            "code": code,
+        }
+    )
+
+    url = (
+        f"https://graph.facebook.com/"
+        f"{META_GRAPH_VERSION}/oauth/access_token?{parametros}"
+    )
+
+    requisicao = urllib.request.Request(
+        url,
+        method="GET",
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "Elo-AI-Agent/1.0",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(
+            requisicao,
+            timeout=20
+        ) as resposta:
+            dados = json.loads(
+                resposta.read().decode("utf-8")
+            )
+
+    except urllib.error.HTTPError as erro:
+        corpo = erro.read().decode(
+            "utf-8",
+            errors="replace"
+        )
+
+        print(
+            "Meta recusou a troca do código. "
+            f"HTTP {erro.code}: {corpo}"
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "A Meta recusou a troca do código de autorização. "
+                "Verifique o App ID, App Secret e a configuração "
+                "do Facebook Login for Business."
+            ),
+        )
+
+    except Exception as erro:
+        print(
+            "Erro ao trocar código por token:",
+            type(erro).__name__,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail="Não foi possível comunicar com a Meta."
+        )
+
+    access_token = dados.get("access_token")
+
+    if not access_token:
+        print(
+            "Resposta da Meta sem access_token. "
+            f"Campos recebidos: {list(dados.keys())}"
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail="A Meta não retornou um token de acesso."
+        )
+
+    return access_token
 
 
 @app.get("/")
@@ -78,6 +180,11 @@ def coexistencia():
 
     <script>
 
+        let codigoAutorizacao = null;
+        let dadosEmbeddedSignup = null;
+        let callbackEnviado = false;
+
+
         window.fbAsyncInit = function() {
             FB.init({
                 appId: '1748103033006020',
@@ -113,6 +220,10 @@ def coexistencia():
 
         function launchWhatsAppSignup() {
 
+            callbackEnviado = false;
+            codigoAutorizacao = null;
+            dadosEmbeddedSignup = null;
+
             atualizarStatus(
                 "Abrindo autenticação do WhatsApp..."
             );
@@ -131,9 +242,14 @@ def coexistencia():
                         response.authResponse.code
                     ) {
 
-                        processarCodigoAutorizacao(
-                            response.authResponse.code
+                        codigoAutorizacao =
+                            response.authResponse.code;
+
+                        atualizarStatus(
+                            "Autorização recebida. Aguardando dados do WhatsApp..."
                         );
+
+                        tentarFinalizarCadastro();
 
                     } else {
 
@@ -167,13 +283,82 @@ def coexistencia():
         }
 
 
-        async function processarCodigoAutorizacao(code) {
+        function tentarFinalizarCadastro() {
+
+            if (callbackEnviado) {
+                return;
+            }
+
+            if (!codigoAutorizacao) {
+                return;
+            }
+
+            /*
+             * Em alguns fluxos a Meta pode não enviar o evento FINISH.
+             * Nesse caso ainda fazemos a troca segura do code.
+             */
+            if (!dadosEmbeddedSignup) {
+
+                setTimeout(
+                    function() {
+
+                        if (
+                            codigoAutorizacao &&
+                            !callbackEnviado
+                        ) {
+                            processarCodigoAutorizacao(
+                                codigoAutorizacao,
+                                null
+                            );
+                        }
+
+                    },
+                    1800
+                );
+
+                return;
+            }
+
+            processarCodigoAutorizacao(
+                codigoAutorizacao,
+                dadosEmbeddedSignup
+            );
+
+        }
+
+
+        async function processarCodigoAutorizacao(
+            code,
+            sessionData
+        ) {
+
+            if (callbackEnviado) {
+                return;
+            }
+
+            callbackEnviado = true;
 
             atualizarStatus(
-                "Autorização recebida. Processando..."
+                "Autorização recebida. Validando com a Meta..."
             );
 
             try {
+
+                const payload = {
+                    code: code
+                };
+
+                if (sessionData) {
+
+                    payload.waba_id =
+                        sessionData.waba_id || null;
+
+                    payload.phone_number_id =
+                        sessionData.phone_number_id || null;
+
+                    payload.business_id =
+                        sessionData.business_id || null;
+                }
 
                 const retorno = await fetch(
                     '/coexistencia/callback',
@@ -184,9 +369,7 @@ def coexistencia():
                             'Content-Type': 'application/json'
                         },
 
-                        body: JSON.stringify({
-                            code: code
-                        })
+                        body: JSON.stringify(payload)
                     }
                 );
 
@@ -199,12 +382,27 @@ def coexistencia():
 
                 if (retorno.ok) {
 
-                    atualizarStatus(
+                    let mensagem =
                         dados.message ||
-                        "Autorização recebida com sucesso."
-                    );
+                        "Autorização validada com sucesso.";
+
+                    if (
+                        dados.waba_id ||
+                        dados.phone_number_id
+                    ) {
+
+                        mensagem +=
+                            " WABA: " +
+                            (dados.waba_id || "não informado") +
+                            " | Phone Number ID: " +
+                            (dados.phone_number_id || "não informado");
+                    }
+
+                    atualizarStatus(mensagem);
 
                 } else {
+
+                    callbackEnviado = false;
 
                     atualizarStatus(
                         dados.detail ||
@@ -214,6 +412,8 @@ def coexistencia():
                 }
 
             } catch (erro) {
+
+                callbackEnviado = false;
 
                 console.error(
                     "Erro ao enviar código:",
@@ -256,10 +456,50 @@ def coexistencia():
                         data.type === "WA_EMBEDDED_SIGNUP"
                     ) {
 
-                        console.log(
-                            "WhatsApp Embedded Signup:",
-                            data
-                        );
+                        if (
+                            data.event === "FINISH" &&
+                            data.data
+                        ) {
+
+                            dadosEmbeddedSignup =
+                                data.data;
+
+                            console.log(
+                                "Embedded Signup finalizado:",
+                                {
+                                    waba_id:
+                                        data.data.waba_id,
+                                    phone_number_id:
+                                        data.data.phone_number_id,
+                                    business_id:
+                                        data.data.business_id
+                                }
+                            );
+
+                            tentarFinalizarCadastro();
+
+                        } else if (
+                            data.event === "CANCEL"
+                        ) {
+
+                            atualizarStatus(
+                                "Cadastro cancelado antes da conclusão."
+                            );
+
+                        } else if (
+                            data.event === "ERROR"
+                        ) {
+
+                            atualizarStatus(
+                                "A Meta informou um erro durante o cadastro."
+                            );
+
+                            console.log(
+                                "Erro Embedded Signup:",
+                                data.data
+                            );
+
+                        }
 
                     }
 
@@ -297,9 +537,45 @@ async def coexistencia_callback(
         "Código de autorização do Embedded Signup recebido."
     )
 
+    # O App Secret permanece somente no Render.
+    # O access token retornado pela Meta também não é enviado ao navegador.
+    access_token = trocar_codigo_por_token(
+        dados.code
+    )
+
+    print(
+        "Código trocado por access token com sucesso."
+    )
+
+    if dados.waba_id:
+        print(
+            "WABA ID recebido:",
+            dados.waba_id
+        )
+
+    if dados.phone_number_id:
+        print(
+            "Phone Number ID recebido:",
+            dados.phone_number_id
+        )
+
+    if dados.business_id:
+        print(
+            "Business ID recebido:",
+            dados.business_id
+        )
+
+    # Mantemos a variável somente durante esta requisição.
+    # Ela será usada no próximo passo para concluir as chamadas
+    # necessárias da Graph API sem expor o token no navegador.
+    del access_token
+
     return {
         "status": "ok",
-        "message": "Autorização recebida pelo servidor da Elo."
+        "message": "Autorização validada pela Meta com sucesso.",
+        "waba_id": dados.waba_id,
+        "phone_number_id": dados.phone_number_id,
+        "business_id": dados.business_id,
     }
 
 
