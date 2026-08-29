@@ -11,7 +11,9 @@ from .database import registrar_mensagem, salvar_conversa
 from .agent import reply_to_customer
 from .meta import send_whatsapp_text
 
+
 META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN", "")
+
 
 app = FastAPI(
     title="Elo AI Agent",
@@ -67,7 +69,8 @@ def coexistencia():
             font-size:17px;
             border-radius:8px;
             cursor:pointer;
-        ">
+        "
+    >
         Conectar WhatsApp Business
     </button>
 
@@ -110,75 +113,27 @@ def coexistencia():
 
         function launchWhatsAppSignup() {
 
-            atualizarStatus("Abrindo autenticação do WhatsApp...");
+            atualizarStatus(
+                "Abrindo autenticação do WhatsApp..."
+            );
 
             FB.login(
 
-                async function(response) {
+                function(response) {
 
-                    console.log("Resposta Facebook:", response);
+                    console.log(
+                        "Resposta Facebook:",
+                        response
+                    );
 
                     if (
                         response.authResponse &&
                         response.authResponse.code
                     ) {
 
-                        atualizarStatus(
-                            "Autorização recebida. Processando..."
+                        processarCodigoAutorizacao(
+                            response.authResponse.code
                         );
-
-                        try {
-
-                            const retorno = await fetch(
-                                '/coexistencia/callback',
-                                {
-                                    method: 'POST',
-
-                                    headers: {
-                                        'Content-Type': 'application/json'
-                                    },
-
-                                    body: JSON.stringify({
-                                        code: response.authResponse.code
-                                    })
-                                }
-                            );
-
-                            const dados = await retorno.json();
-
-                            console.log(
-                                "Retorno backend:",
-                                dados
-                            );
-
-                            if (retorno.ok) {
-
-                                atualizarStatus(
-                                    dados.message ||
-                                    "Autorização recebida com sucesso."
-                                );
-
-                            } else {
-
-                                atualizarStatus(
-                                    dados.detail ||
-                                    "Erro ao processar autorização."
-                                );
-
-                            }
-
-                        } catch (erro) {
-
-                            console.error(
-                                "Erro ao enviar código:",
-                                erro
-                            );
-
-                            atualizarStatus(
-                                "Erro ao enviar autorização para o servidor."
-                            );
-
-                        }
 
                     } else {
 
@@ -208,6 +163,68 @@ def coexistencia():
                 }
 
             );
+
+        }
+
+
+        async function processarCodigoAutorizacao(code) {
+
+            atualizarStatus(
+                "Autorização recebida. Processando..."
+            );
+
+            try {
+
+                const retorno = await fetch(
+                    '/coexistencia/callback',
+                    {
+                        method: 'POST',
+
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+
+                        body: JSON.stringify({
+                            code: code
+                        })
+                    }
+                );
+
+                const dados = await retorno.json();
+
+                console.log(
+                    "Retorno backend:",
+                    dados
+                );
+
+                if (retorno.ok) {
+
+                    atualizarStatus(
+                        dados.message ||
+                        "Autorização recebida com sucesso."
+                    );
+
+                } else {
+
+                    atualizarStatus(
+                        dados.detail ||
+                        "Erro ao processar autorização."
+                    );
+
+                }
+
+            } catch (erro) {
+
+                console.error(
+                    "Erro ao enviar código:",
+                    erro
+                );
+
+                atualizarStatus(
+                    "Erro ao enviar autorização para o servidor."
+                );
+
+            }
 
         }
 
@@ -266,7 +283,9 @@ def coexistencia():
 
 
 @app.post("/coexistencia/callback")
-async def coexistencia_callback(dados: CoexistenciaCallback):
+async def coexistencia_callback(
+    dados: CoexistenciaCallback
+):
 
     if not dados.code:
         raise HTTPException(
@@ -285,7 +304,9 @@ async def coexistencia_callback(dados: CoexistenciaCallback):
 
 
 @app.post("/teste/mensagem")
-def teste_mensagem(dados: MensagemTeste):
+def teste_mensagem(
+    dados: MensagemTeste
+):
 
     registro = registrar_mensagem(
         telefone=dados.telefone,
@@ -338,7 +359,9 @@ async def verificar_webhook(
 
 
 @app.post("/webhook")
-async def receber_webhook(request: Request):
+async def receber_webhook(
+    request: Request
+):
 
     payload = await request.json()
 
@@ -364,7 +387,6 @@ async def receber_webhook(request: Request):
         message = messages[0]
 
         telefone = message.get("from")
-
         tipo = message.get("type")
 
         if tipo != "text":
