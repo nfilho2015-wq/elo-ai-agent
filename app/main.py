@@ -26,6 +26,10 @@ class MensagemTeste(BaseModel):
     canal: str = "whatsapp"
 
 
+class CoexistenciaCallback(BaseModel):
+    code: str
+
+
 @app.get("/")
 def home():
     return {
@@ -67,7 +71,10 @@ def coexistencia():
         Conectar WhatsApp Business
     </button>
 
+    <p id="status" style="margin-top:20px;"></p>
+
     <script>
+
         window.fbAsyncInit = function() {
             FB.init({
                 appId: '1748103033006020',
@@ -77,8 +84,11 @@ def coexistencia():
             });
         };
 
+
         (function(d, s, id) {
-            var js, fjs = d.getElementsByTagName(s)[0];
+
+            var js;
+            var fjs = d.getElementsByTagName(s)[0];
 
             if (d.getElementById(id)) {
                 return;
@@ -87,34 +97,191 @@ def coexistencia():
             js = d.createElement(s);
             js.id = id;
             js.src = "https://connect.facebook.net/pt_BR/sdk.js";
+
             fjs.parentNode.insertBefore(js, fjs);
 
         }(document, 'script', 'facebook-jssdk'));
 
+
+        function atualizarStatus(texto) {
+            document.getElementById("status").innerText = texto;
+        }
+
+
         function launchWhatsAppSignup() {
 
-            FB.login(function(response) {
-                console.log(response);
+            atualizarStatus("Abrindo autenticação do WhatsApp...");
 
-            }, {
-                config_id: '912441148600105',
+            FB.login(
 
-                response_type: 'code',
+                async function(response) {
 
-                override_default_response_type: true,
+                    console.log("Resposta Facebook:", response);
 
-                extras: {
-                    setup: {},
-                    featureType: 'whatsapp_business_app_onboarding',
-                    sessionInfoVersion: '3'
+                    if (
+                        response.authResponse &&
+                        response.authResponse.code
+                    ) {
+
+                        atualizarStatus(
+                            "Autorização recebida. Processando..."
+                        );
+
+                        try {
+
+                            const retorno = await fetch(
+                                '/coexistencia/callback',
+                                {
+                                    method: 'POST',
+
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+
+                                    body: JSON.stringify({
+                                        code: response.authResponse.code
+                                    })
+                                }
+                            );
+
+                            const dados = await retorno.json();
+
+                            console.log(
+                                "Retorno backend:",
+                                dados
+                            );
+
+                            if (retorno.ok) {
+
+                                atualizarStatus(
+                                    dados.message ||
+                                    "Autorização recebida com sucesso."
+                                );
+
+                            } else {
+
+                                atualizarStatus(
+                                    dados.detail ||
+                                    "Erro ao processar autorização."
+                                );
+
+                            }
+
+                        } catch (erro) {
+
+                            console.error(
+                                "Erro ao enviar código:",
+                                erro
+                            );
+
+                            atualizarStatus(
+                                "Erro ao enviar autorização para o servidor."
+                            );
+
+                        }
+
+                    } else {
+
+                        atualizarStatus(
+                            "O Facebook não retornou o código de autorização."
+                        );
+
+                        console.log(
+                            "Login sem código:",
+                            response
+                        );
+
+                    }
+
+                },
+
+                {
+                    config_id: '912441148600105',
+                    response_type: 'code',
+                    override_default_response_type: true,
+
+                    extras: {
+                        setup: {},
+                        featureType: 'whatsapp_business_app_onboarding',
+                        sessionInfoVersion: '3'
+                    }
                 }
-            });
+
+            );
+
         }
+
+
+        window.addEventListener(
+            'message',
+            function(event) {
+
+                if (
+                    event.origin !== "https://www.facebook.com"
+                ) {
+                    return;
+                }
+
+                try {
+
+                    const data =
+                        typeof event.data === "string"
+                            ? JSON.parse(event.data)
+                            : event.data;
+
+                    console.log(
+                        "Evento Embedded Signup:",
+                        data
+                    );
+
+                    if (
+                        data &&
+                        data.type === "WA_EMBEDDED_SIGNUP"
+                    ) {
+
+                        console.log(
+                            "WhatsApp Embedded Signup:",
+                            data
+                        );
+
+                    }
+
+                } catch (erro) {
+
+                    console.log(
+                        "Evento recebido:",
+                        event.data
+                    );
+
+                }
+
+            }
+        );
+
     </script>
 
 </body>
 </html>
 """
+
+
+@app.post("/coexistencia/callback")
+async def coexistencia_callback(dados: CoexistenciaCallback):
+
+    if not dados.code:
+        raise HTTPException(
+            status_code=400,
+            detail="Código de autorização não recebido."
+        )
+
+    print(
+        "Código de autorização do Embedded Signup recebido."
+    )
+
+    return {
+        "status": "ok",
+        "message": "Autorização recebida pelo servidor da Elo."
+    }
 
 
 @app.post("/teste/mensagem")
@@ -153,8 +320,16 @@ async def verificar_webhook(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
 ):
-    if hub_mode == "subscribe" and hub_verify_token == META_VERIFY_TOKEN:
-        return Response(content=hub_challenge, media_type="text/plain")
+
+    if (
+        hub_mode == "subscribe"
+        and hub_verify_token == META_VERIFY_TOKEN
+    ):
+
+        return Response(
+            content=hub_challenge,
+            media_type="text/plain"
+        )
 
     raise HTTPException(
         status_code=403,
@@ -164,9 +339,11 @@ async def verificar_webhook(
 
 @app.post("/webhook")
 async def receber_webhook(request: Request):
+
     payload = await request.json()
 
     try:
+
         entry = payload.get("entry", [])
 
         if not entry:
@@ -178,6 +355,7 @@ async def receber_webhook(request: Request):
             return {"status": "ok"}
 
         value = changes[0].get("value", {})
+
         messages = value.get("messages", [])
 
         if not messages:
@@ -186,17 +364,26 @@ async def receber_webhook(request: Request):
         message = messages[0]
 
         telefone = message.get("from")
+
         tipo = message.get("type")
 
         if tipo != "text":
             return {"status": "ok"}
 
-        texto = message.get("text", {}).get("body", "")
+        texto = message.get(
+            "text",
+            {}
+        ).get(
+            "body",
+            ""
+        )
 
         if not texto:
             return {"status": "ok"}
 
-        resposta = reply_to_customer(texto)
+        resposta = reply_to_customer(
+            texto
+        )
 
         await send_whatsapp_text(
             telefone,
@@ -204,6 +391,12 @@ async def receber_webhook(request: Request):
         )
 
     except Exception as erro:
-        print("Erro no webhook:", erro)
 
-    return {"status": "ok"}
+        print(
+            "Erro no webhook:",
+            erro
+        )
+
+    return {
+        "status": "ok"
+    }
