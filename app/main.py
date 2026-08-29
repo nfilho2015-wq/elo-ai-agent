@@ -61,6 +61,7 @@ def trocar_codigo_por_token(code: str) -> str:
             "client_id": META_APP_ID,
             "client_secret": META_APP_SECRET,
             "code": code,
+            "redirect_uri": "https://elo-ai-agent.onrender.com/coexistencia",
         }
     )
 
