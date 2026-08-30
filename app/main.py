@@ -36,7 +36,8 @@ class MensagemTeste(BaseModel):
 
 
 class CoexistenciaCallback(BaseModel):
-    code: str
+    code: str | None = None
+    access_token: str | None = None
     waba_id: str | None = None
     phone_number_id: str | None = None
     business_id: str | None = None
@@ -180,8 +181,8 @@ def coexistencia():
     <p id="status" style="margin-top:20px;"></p>
 
     <script>
-
         let codigoAutorizacao = null;
+        let accessTokenFacebook = null;
         let dadosEmbeddedSignup = null;
         let callbackEnviado = false;
 
@@ -197,7 +198,6 @@ def coexistencia():
 
 
         (function(d, s, id) {
-
             var js;
             var fjs = d.getElementsByTagName(s)[0];
 
@@ -220,9 +220,9 @@ def coexistencia():
 
 
         function launchWhatsAppSignup() {
-
             callbackEnviado = false;
             codigoAutorizacao = null;
+            accessTokenFacebook = null;
             dadosEmbeddedSignup = null;
 
             atualizarStatus(
@@ -230,9 +230,7 @@ def coexistencia():
             );
 
             FB.login(
-
                 function(response) {
-
                     console.log(
                         "Resposta Facebook:",
                         response
@@ -242,9 +240,21 @@ def coexistencia():
                         response.authResponse &&
                         response.authResponse.code
                     ) {
-
                         codigoAutorizacao =
                             response.authResponse.code;
+
+                        atualizarStatus(
+                            "Código de autorização recebido. Aguardando dados do WhatsApp..."
+                        );
+
+                        tentarFinalizarCadastro();
+
+                    } else if (
+                        response.authResponse &&
+                        response.authResponse.accessToken
+                    ) {
+                        accessTokenFacebook =
+                            response.authResponse.accessToken;
 
                         atualizarStatus(
                             "Autorização recebida. Aguardando dados do WhatsApp..."
@@ -253,24 +263,21 @@ def coexistencia():
                         tentarFinalizarCadastro();
 
                     } else {
-
                         atualizarStatus(
-                            "O Facebook não retornou o código de autorização."
+                            "O Facebook não retornou uma autorização válida."
                         );
 
                         console.log(
-                            "Login sem código:",
+                            "Login sem autorização:",
                             response
                         );
-
                     }
-
                 },
-
                 {
                     config_id: '912441148600105',
 
-                 scope: 'business_management,whatsapp_business_management,whatsapp_business_messaging',
+                    scope: 'business_management,whatsapp_business_management,whatsapp_business_messaging',
+
                     response_type: 'code',
                     override_default_response_type: true,
 
@@ -280,41 +287,38 @@ def coexistencia():
                         sessionInfoVersion: '3'
                     }
                 }
-
             );
-
         }
 
 
         function tentarFinalizarCadastro() {
-
             if (callbackEnviado) {
                 return;
             }
 
-            if (!codigoAutorizacao) {
+            if (
+                !codigoAutorizacao &&
+                !accessTokenFacebook
+            ) {
                 return;
             }
 
-            /*
-             * Em alguns fluxos a Meta pode não enviar o evento FINISH.
-             * Nesse caso ainda fazemos a troca segura do code.
-             */
             if (!dadosEmbeddedSignup) {
-
                 setTimeout(
                     function() {
-
                         if (
-                            codigoAutorizacao &&
+                            (
+                                codigoAutorizacao ||
+                                accessTokenFacebook
+                            ) &&
                             !callbackEnviado
                         ) {
-                            processarCodigoAutorizacao(
+                            processarAutorizacao(
                                 codigoAutorizacao,
+                                accessTokenFacebook,
                                 null
                             );
                         }
-
                     },
                     1800
                 );
@@ -322,19 +326,19 @@ def coexistencia():
                 return;
             }
 
-            processarCodigoAutorizacao(
+            processarAutorizacao(
                 codigoAutorizacao,
+                accessTokenFacebook,
                 dadosEmbeddedSignup
             );
-
         }
 
 
-        async function processarCodigoAutorizacao(
+        async function processarAutorizacao(
             code,
+            accessToken,
             sessionData
         ) {
-
             if (callbackEnviado) {
                 return;
             }
@@ -346,13 +350,17 @@ def coexistencia():
             );
 
             try {
+                const payload = {};
 
-                const payload = {
-                    code: code
-                };
+                if (code) {
+                    payload.code = code;
+                }
+
+                if (accessToken) {
+                    payload.access_token = accessToken;
+                }
 
                 if (sessionData) {
-
                     payload.waba_id =
                         sessionData.waba_id || null;
 
@@ -384,7 +392,6 @@ def coexistencia():
                 );
 
                 if (retorno.ok) {
-
                     let mensagem =
                         dados.message ||
                         "Autorização validada com sucesso.";
@@ -393,7 +400,6 @@ def coexistencia():
                         dados.waba_id ||
                         dados.phone_number_id
                     ) {
-
                         mensagem +=
                             " WABA: " +
                             (dados.waba_id || "não informado") +
@@ -404,38 +410,32 @@ def coexistencia():
                     atualizarStatus(mensagem);
 
                 } else {
-
                     callbackEnviado = false;
 
                     atualizarStatus(
                         dados.detail ||
                         "Erro ao processar autorização."
                     );
-
                 }
 
             } catch (erro) {
-
                 callbackEnviado = false;
 
                 console.error(
-                    "Erro ao enviar código:",
+                    "Erro ao enviar autorização:",
                     erro
                 );
 
                 atualizarStatus(
                     "Erro ao enviar autorização para o servidor."
                 );
-
             }
-
         }
 
 
         window.addEventListener(
             'message',
             function(event) {
-
                 if (
                     event.origin !== "https://www.facebook.com"
                 ) {
@@ -443,7 +443,6 @@ def coexistencia():
                 }
 
                 try {
-
                     const data =
                         typeof event.data === "string"
                             ? JSON.parse(event.data)
@@ -458,12 +457,10 @@ def coexistencia():
                         data &&
                         data.type === "WA_EMBEDDED_SIGNUP"
                     ) {
-
                         if (
                             data.event === "FINISH" &&
                             data.data
                         ) {
-
                             dadosEmbeddedSignup =
                                 data.data;
 
@@ -484,7 +481,6 @@ def coexistencia():
                         } else if (
                             data.event === "CANCEL"
                         ) {
-
                             atualizarStatus(
                                 "Cadastro cancelado antes da conclusão."
                             );
@@ -492,7 +488,6 @@ def coexistencia():
                         } else if (
                             data.event === "ERROR"
                         ) {
-
                             atualizarStatus(
                                 "A Meta informou um erro durante o cadastro."
                             );
@@ -501,23 +496,17 @@ def coexistencia():
                                 "Erro Embedded Signup:",
                                 data.data
                             );
-
                         }
-
                     }
 
                 } catch (erro) {
-
                     console.log(
                         "Evento recebido:",
                         event.data
                     );
-
                 }
-
             }
         );
-
     </script>
 
 </body>
@@ -529,26 +518,39 @@ def coexistencia():
 async def coexistencia_callback(
     dados: CoexistenciaCallback
 ):
-
-    if not dados.code:
+    if not dados.code and not dados.access_token:
         raise HTTPException(
             status_code=400,
-            detail="Código de autorização não recebido."
+            detail="Nenhuma autorização foi recebida da Meta."
         )
 
-    print(
-        "Código de autorização do Embedded Signup recebido."
-    )
+    access_token = None
 
-    # O App Secret permanece somente no Render.
-    # O access token retornado pela Meta também não é enviado ao navegador.
-    access_token = trocar_codigo_por_token(
-        dados.code
-    )
+    if dados.code:
+        print(
+            "Código de autorização do Embedded Signup recebido."
+        )
 
-    print(
-        "Código trocado por access token com sucesso."
-    )
+        access_token = trocar_codigo_por_token(
+            dados.code
+        )
+
+        print(
+            "Código trocado por access token com sucesso."
+        )
+
+    elif dados.access_token:
+        print(
+            "Access token recebido diretamente pelo Facebook Login."
+        )
+
+        access_token = dados.access_token
+
+    if not access_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Não foi possível obter um token de acesso válido."
+        )
 
     if dados.waba_id:
         print(
@@ -568,9 +570,6 @@ async def coexistencia_callback(
             dados.business_id
         )
 
-    # Mantemos a variável somente durante esta requisição.
-    # Ela será usada no próximo passo para concluir as chamadas
-    # necessárias da Graph API sem expor o token no navegador.
     del access_token
 
     return {
@@ -586,7 +585,6 @@ async def coexistencia_callback(
 def teste_mensagem(
     dados: MensagemTeste
 ):
-
     registro = registrar_mensagem(
         telefone=dados.telefone,
         mensagem=dados.mensagem,
@@ -620,12 +618,10 @@ async def verificar_webhook(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
 ):
-
     if (
         hub_mode == "subscribe"
         and hub_verify_token == META_VERIFY_TOKEN
     ):
-
         return Response(
             content=hub_challenge,
             media_type="text/plain"
@@ -641,11 +637,9 @@ async def verificar_webhook(
 async def receber_webhook(
     request: Request
 ):
-
     payload = await request.json()
 
     try:
-
         entry = payload.get("entry", [])
 
         if not entry:
@@ -692,7 +686,6 @@ async def receber_webhook(
         )
 
     except Exception as erro:
-
         print(
             "Erro no webhook:",
             erro
