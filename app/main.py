@@ -18,8 +18,8 @@ from .meta import send_whatsapp_text
 
 # ✅ IDs REAIS DA ELO AMBIENTES PLANEJADOS
 META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN", "EloVerifyToken2026")
-META_APP_ID = os.getenv("META_APP_ID", "SEU_APP_ID_AQUI")  # ← SUBSTITUIR PELO APP ID DO APP QUE TEM PERMISSÕES
-META_APP_SECRET = os.getenv("META_APP_SECRET", "SEU_APP_SECRET_AQUI")
+META_APP_ID = os.getenv("META_APP_ID", "1748103033006020")
+META_APP_SECRET = os.getenv("META_APP_SECRET", "7c95bd1c86c4f5e4f296cfb9acb040c2")
 META_CONFIG_ID = os.getenv("META_CONFIG_ID", "1414583593977374")
 META_GRAPH_VERSION = os.getenv("META_GRAPH_VERSION", "v23.0")
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1265952296607671")
@@ -87,7 +87,7 @@ def trocar_codigo_por_token(code: str) -> str:
         print(f"Meta recusou a troca do código. HTTP {erro.code}: {corpo}")
         raise HTTPException(
             status_code=502,
-            detail="A Meta recusou a troca do código de autorização. Verifique o App ID, App Secret e a configuração do Facebook Login for Business."
+            detail="A Meta recusou a troca do código de autorização."
         )
     except Exception as erro:
         print("Erro ao trocar código por token:", type(erro).__name__)
@@ -116,6 +116,61 @@ def home():
         "waba_id": WABA_ID,
         "phone_number_id": WHATSAPP_PHONE_NUMBER_ID
     }
+
+
+@app.get("/privacidade")
+def privacidade():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Política de Privacidade - Elo Ambientes Planejados</title>
+        <style>
+            body { font-family: Arial; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+            h1 { color: #250366; }
+            h2 { color: #250366; margin-top: 30px; }
+            .container { background: #f9f9f9; padding: 30px; border-radius: 10px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Política de Privacidade</h1>
+            <p><strong>Elo Ambientes Planejados</strong></p>
+            <p>Última atualização: 31 de agosto de 2026</p>
+            
+            <h2>1. Informações Coletadas</h2>
+            <p>Coletamos as seguintes informações quando você interage com nosso assistente via WhatsApp:</p>
+            <ul>
+                <li>Número de telefone</li>
+                <li>Nome (quando fornecido)</li>
+                <li>Mensagens enviadas para o assistente</li>
+            </ul>
+            
+            <h2>2. Uso das Informações</h2>
+            <p>Utilizamos suas informações para:</p>
+            <ul>
+                <li>Responder suas perguntas e solicitações</li>
+                <li>Melhorar nosso atendimento ao cliente</li>
+                <li>Enviar informações sobre nossos produtos e serviços</li>
+            </ul>
+            
+            <h2>3. Compartilhamento de Dados</h2>
+            <p>Não compartilhamos seus dados pessoais com terceiros.</p>
+            
+            <h2>4. Armazenamento</h2>
+            <p>Seus dados são armazenados em nosso banco de dados seguro (Supabase).</p>
+            
+            <h2>5. Seus Direitos</h2>
+            <p>Você pode solicitar a exclusão de seus dados a qualquer momento.</p>
+            
+            <h2>6. Contato</h2>
+            <p>Email: contato@elo.ae</p>
+            <p>Telefone: +55 91 8141-0773</p>
+        </div>
+    </body>
+    </html>
+    """
 
 
 @app.get("/coexistencia", response_class=HTMLResponse)
