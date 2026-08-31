@@ -134,7 +134,7 @@ def coexistencia():
     <p>Vincular WhatsApp Business com a Elo IA</p>
 
     <button
-        onclick="launchWhatsAppSignup()"
+        onclick="verificarSDK()"
         style="background:#25D366; color:white; border:none; padding:15px 25px; font-size:17px; border-radius:8px; cursor:pointer;"
     >
         Conectar WhatsApp Business
@@ -154,15 +154,19 @@ def coexistencia():
         let dadosEmbeddedSignup = null;
         let callbackEnviado = false;
 
+        // ✅ INICIALIZAÇÃO DO FACEBOOK SDK
         window.fbAsyncInit = function() {{
+            console.log("✅ Facebook SDK inicializado!");
             FB.init({{
                 appId: APP_ID,
                 autoLogAppEvents: true,
                 xfbml: true,
                 version: 'v23.0'
             }});
+            console.log("✅ Facebook SDK configurado com App ID:", APP_ID);
         }};
 
+        // ✅ CARREGAMENTO DO SDK COM ASYNC E DEFER
         (function(d, s, id) {{
             var js;
             var fjs = d.getElementsByTagName(s)[0];
@@ -170,8 +174,24 @@ def coexistencia():
             js = d.createElement(s);
             js.id = id;
             js.src = "https://connect.facebook.net/pt_BR/sdk.js";
+            js.async = true;
+            js.defer = true;
+            js.crossOrigin = "anonymous";
             fjs.parentNode.insertBefore(js, fjs);
+            console.log("✅ SDK carregando...");
         }}(document, 'script', 'facebook-jssdk'));
+
+        // ✅ FUNÇÃO PARA VERIFICAR SE O SDK ESTÁ CARREGADO
+        function verificarSDK() {{
+            if (typeof FB === 'undefined') {{
+                atualizarStatus("⏳ Carregando Facebook... Aguarde");
+                console.log("⏳ SDK não carregado, tentando novamente em 500ms...");
+                setTimeout(verificarSDK, 500);
+                return;
+            }}
+            console.log("✅ SDK carregado com sucesso!");
+            launchWhatsAppSignup();
+        }}
 
         function atualizarStatus(texto) {{
             document.getElementById("status").innerText = texto;
@@ -183,15 +203,19 @@ def coexistencia():
             accessTokenFacebook = null;
             dadosEmbeddedSignup = null;
 
-            atualizarStatus("Abrindo autenticação do WhatsApp...");
+            atualizarStatus("🔄 Abrindo autenticação do WhatsApp...");
+
+            console.log("🚀 Iniciando FB.login com config_id:", CONFIG_ID);
 
             FB.login(
                 function(response) {{
-                    console.log("Resposta Facebook (callback):", response);
+                    console.log("📱 Resposta Facebook (callback):", response);
                     if (response.status === 'connected') {{
-                        atualizarStatus("Facebook conectado. Aguardando dados do WhatsApp...");
+                        atualizarStatus("✅ Facebook conectado. Aguardando dados do WhatsApp...");
+                        console.log("✅ Status connected:", response.authResponse);
                     }} else {{
-                        console.log("Aguardando evento do Embedded Signup...");
+                        console.log("⏳ Aguardando evento do Embedded Signup...");
+                        atualizarStatus("⏳ Aguardando autorização do WhatsApp...");
                     }}
                 }},
                 {{
@@ -208,14 +232,15 @@ def coexistencia():
         function tentarFinalizarCadastro() {{
             if (callbackEnviado) return;
             if (!dadosEmbeddedSignup) {{
-                atualizarStatus("Aguardando conclusão do Cadastro Incorporado...");
+                atualizarStatus("⏳ Aguardando conclusão do Cadastro Incorporado...");
                 return;
             }}
             if (!dadosEmbeddedSignup.waba_id || !dadosEmbeddedSignup.phone_number_id) {{
-                atualizarStatus("Cadastro concluído, mas a Meta não retornou WABA ID e Phone Number ID.");
-                console.log("Dados incompletos do Embedded Signup:", dadosEmbeddedSignup);
+                atualizarStatus("⚠️ Cadastro concluído, mas a Meta não retornou WABA ID e Phone Number ID.");
+                console.log("❌ Dados incompletos do Embedded Signup:", dadosEmbeddedSignup);
                 return;
             }}
+            console.log("✅ Dados completos, processando autorização...");
             processarAutorizacao(
                 codigoAutorizacao,
                 accessTokenFacebook,
@@ -226,7 +251,7 @@ def coexistencia():
         async function processarAutorizacao(code, accessToken, sessionData) {{
             if (callbackEnviado) return;
             callbackEnviado = true;
-            atualizarStatus("Validando com o servidor...");
+            atualizarStatus("🔄 Validando com o servidor...");
 
             try {{
                 const payload = {{}};
@@ -241,7 +266,7 @@ def coexistencia():
                     payload.business_id = sessionData.business_id || null;
                 }}
 
-                console.log("Enviando payload:", payload);
+                console.log("📤 Enviando payload:", payload);
 
                 const retorno = await fetch('/coexistencia/callback', {{
                     method: 'POST',
@@ -250,7 +275,7 @@ def coexistencia():
                 }});
 
                 const dados = await retorno.json();
-                console.log("Retorno backend:", dados);
+                console.log("📥 Retorno backend:", dados);
 
                 if (retorno.ok) {{
                     let mensagem = dados.message || "✅ Autorização validada com sucesso!";
@@ -265,19 +290,25 @@ def coexistencia():
                 }}
             }} catch (erro) {{
                 callbackEnviado = false;
-                console.error("Erro ao enviar autorização:", erro);
+                console.error("❌ Erro ao enviar autorização:", erro);
                 atualizarStatus("❌ Erro ao enviar autorização para o servidor.");
             }}
         }}
 
+        // ✅ LISTENER DO EMBEDDED SIGNUP
         window.addEventListener('message', function(event) {{
-            if (event.origin !== "https://www.facebook.com") return;
+            if (event.origin !== "https://www.facebook.com") {{
+                console.log("🌐 Evento ignorado - origem diferente:", event.origin);
+                return;
+            }}
 
             try {{
                 const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-                console.log("Evento recebido:", data);
+                console.log("📩 Evento recebido do Facebook:", data);
 
                 if (data && data.type === "WA_EMBEDDED_SIGNUP") {{
+                    console.log("📌 Evento WA_EMBEDDED_SIGNUP detectado!");
+                    
                     if (data.event === "FINISH" && data.data) {{
                         dadosEmbeddedSignup = {{
                             waba_id: data.data.waba_id || null,
@@ -288,25 +319,32 @@ def coexistencia():
 
                         if (dadosEmbeddedSignup.access_token) {{
                             accessTokenFacebook = dadosEmbeddedSignup.access_token;
-                            console.log("Access token recebido via Embedded Signup");
+                            console.log("🔑 Access token recebido via Embedded Signup");
                         }}
 
-                        console.log("Embedded Signup finalizado:", dadosEmbeddedSignup);
-                        atualizarStatus("Cadastro concluído! Validando...");
+                        console.log("✅ Embedded Signup finalizado:", dadosEmbeddedSignup);
+                        atualizarStatus("✅ Cadastro concluído! Validando...");
                         tentarFinalizarCadastro();
                     }} else if (data.event === "CANCEL") {{
                         callbackEnviado = false;
                         atualizarStatus("❌ Cadastro cancelado.");
+                        console.log("❌ Usuário cancelou o cadastro");
                     }} else if (data.event === "ERROR") {{
                         callbackEnviado = false;
                         atualizarStatus("❌ Erro no cadastro.");
-                        console.log("Erro Embedded Signup:", data.data);
+                        console.log("❌ Erro Embedded Signup:", data.data);
                     }}
                 }}
             }} catch (erro) {{
-                console.log("Evento não-JSON recebido:", event.data);
+                console.log("ℹ️ Evento não-JSON recebido:", event.data);
             }}
         }});
+
+        console.log("🚀 Página carregada, aguardando interação do usuário...");
+        console.log("📋 Config ID:", CONFIG_ID);
+        console.log("📋 App ID:", APP_ID);
+        console.log("📋 WABA ID:", WABA_ID);
+        console.log("📋 Phone Number ID:", PHONE_NUMBER_ID);
     </script>
 
 </body>
@@ -325,11 +363,11 @@ async def coexistencia_callback(dados: CoexistenciaCallback):
     access_token = None
 
     if dados.code:
-        print("Código de autorização do Embedded Signup recebido.")
+        print("📥 Código de autorização do Embedded Signup recebido.")
         access_token = trocar_codigo_por_token(dados.code)
-        print("Código trocado por access token com sucesso.")
+        print("✅ Código trocado por access token com sucesso.")
     elif dados.access_token:
-        print("Access token recebido diretamente pelo Facebook Login.")
+        print("📥 Access token recebido diretamente pelo Facebook Login.")
         access_token = dados.access_token
 
     if not access_token:
@@ -425,6 +463,6 @@ async def receber_webhook(request: Request):
         await send_whatsapp_text(telefone, resposta)
 
     except Exception as erro:
-        print("Erro no webhook:", erro)
+        print("❌ Erro no webhook:", erro)
 
     return {"status": "ok"}
