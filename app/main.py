@@ -262,10 +262,18 @@ def coexistencia():
 
             console.log("🚀 Iniciando FB.login com config_id:", CONFIG_ID);
 
+            // ✅ AJUSTE: response_type = 'code' (correto para Embedded Signup)
             FB.login(
                 function(response) {{
                     console.log("📱 Resposta Facebook (callback):", response);
-                    if (response.status === 'connected') {{
+                    
+                    // ✅ CAPTURA O CÓDIGO DE AUTORIZAÇÃO
+                    if (response.authResponse && response.authResponse.code) {{
+                        codigoAutorizacao = response.authResponse.code;
+                        console.log("✅ Código de autorização recebido:", codigoAutorizacao);
+                        atualizarStatus("✅ Autorização recebida. Aguardando dados do WhatsApp...");
+                        tentarFinalizarCadastro();
+                    }} else if (response.status === 'connected') {{
                         atualizarStatus("✅ Facebook conectado. Aguardando dados do WhatsApp...");
                         console.log("✅ Status connected:", response.authResponse);
                     }} else {{
@@ -275,7 +283,7 @@ def coexistencia():
                 }},
                 {{
                     config_id: CONFIG_ID,
-                    response_type: 'code',
+                    response_type: 'code',  // ✅ CORRETO PARA EMBEDDED SIGNUP
                     override_default_response_type: true,
                     extras: {{
                         version: 'v4'
@@ -286,15 +294,24 @@ def coexistencia():
 
         function tentarFinalizarCadastro() {{
             if (callbackEnviado) return;
+            
+            // ✅ VERIFICA SE TEM O CÓDIGO DE AUTORIZAÇÃO
+            if (!codigoAutorizacao && !accessTokenFacebook) {{
+                atualizarStatus("⏳ Aguardando código de autorização...");
+                return;
+            }}
+            
             if (!dadosEmbeddedSignup) {{
                 atualizarStatus("⏳ Aguardando conclusão do Cadastro Incorporado...");
                 return;
             }}
+            
             if (!dadosEmbeddedSignup.waba_id || !dadosEmbeddedSignup.phone_number_id) {{
                 atualizarStatus("⚠️ Cadastro concluído, mas a Meta não retornou WABA ID e Phone Number ID.");
                 console.log("❌ Dados incompletos do Embedded Signup:", dadosEmbeddedSignup);
                 return;
             }}
+            
             console.log("✅ Dados completos, processando autorização...");
             processarAutorizacao(
                 codigoAutorizacao,
@@ -310,11 +327,14 @@ def coexistencia():
 
             try {{
                 const payload = {{}};
-                if (accessToken) {{
-                    payload.access_token = accessToken;
-                }} else if (code) {{
+                
+                // ✅ PRIORIZA O CÓDIGO (que é trocado no servidor)
+                if (code) {{
                     payload.code = code;
+                }} else if (accessToken) {{
+                    payload.access_token = accessToken;
                 }}
+                
                 if (sessionData) {{
                     payload.waba_id = sessionData.waba_id || null;
                     payload.phone_number_id = sessionData.phone_number_id || null;
@@ -390,6 +410,14 @@ def coexistencia():
                         console.log("❌ Erro Embedded Signup:", data.data);
                     }}
                 }}
+                
+                // ✅ TAMBÉM CAPTURA EVENTOS DE AUTORIZAÇÃO SEPARADOS
+                if (data && data.type === "FB_AUTHORIZATION" && data.data && data.data.code) {{
+                    codigoAutorizacao = data.data.code;
+                    console.log("✅ Código de autorização recebido via evento:", codigoAutorizacao);
+                    tentarFinalizarCadastro();
+                }}
+                
             }} catch (erro) {{
                 console.log("ℹ️ Evento não-JSON recebido:", event.data);
             }}
