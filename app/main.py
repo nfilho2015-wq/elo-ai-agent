@@ -9,26 +9,37 @@ load_dotenv(override=True)
 
 from fastapi import FastAPI, Request, Query, HTTPException, Response
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .database import registrar_mensagem, salvar_conversa
 from .agent import reply_to_customer
 from .meta import send_whatsapp_text
 
-
 # ✅ IDs DO NOVO APP - ELO IA AGENT
 META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN", "EloVerifyToken2026")
 META_APP_ID = os.getenv("META_APP_ID", "1366188178520853")
-META_APP_SECRET = os.getenv("META_APP_SECRET", "508e9e81ee7f8d8c1d9e647f9eaac7d9")
+META_APP_SECRET = os.getenv("META_APP_SECRET")  # ⚠️ NUNCA coloque o valor real no código!
 META_CONFIG_ID = os.getenv("META_CONFIG_ID", "1026814117069301")
 META_GRAPH_VERSION = os.getenv("META_GRAPH_VERSION", "v23.0")
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1265952296607671")
 WABA_ID = os.getenv("WABA_ID", "197150899688303")
 
+# URL do callback (deve ser exatamente a mesma cadastrada no Facebook)
+REDIRECT_URI = "https://elo-ai-agent.onrender.com/coexistencia"
 
 app = FastAPI(
     title="Elo AI Agent",
     version="0.3.0"
+)
+
+# ✅ Habilita CORS (Evita bloqueios e permite o pop-up funcionar corretamente)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -51,7 +62,6 @@ def trocar_codigo_por_token(code: str) -> str:
     """
     Troca o código temporário do Facebook Login for Business por um
     access token no SERVIDOR.
-    O token nunca é devolvido ao navegador e nunca é gravado em log.
     """
     if not META_APP_SECRET:
         raise HTTPException(
@@ -64,7 +74,7 @@ def trocar_codigo_por_token(code: str) -> str:
             "client_id": META_APP_ID,
             "client_secret": META_APP_SECRET,
             "code": code,
-            "redirect_uri": "https://elo-ai-agent.onrender.com/",
+            "redirect_uri": REDIRECT_URI,
         }
     )
 
@@ -118,16 +128,17 @@ def home():
     }
 
 
-@app.get("/privacidade")
+# ✅ PÁGINA DE PRIVACIDADE (CORRIGIDA COM HTMLResponse)
+@app.get("/privacidade", response_class=HTMLResponse)
 def privacidade():
-    return """
+    html_content = """
     <!DOCTYPE html>
-    <html>
+    <html lang="pt-BR">
     <head>
         <meta charset="UTF-8">
         <title>Política de Privacidade - Elo Ambientes Planejados</title>
         <style>
-            body { font-family: Arial; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+            body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
             h1 { color: #250366; }
             h2 { color: #250366; margin-top: 30px; }
             .container { background: #f9f9f9; padding: 30px; border-radius: 10px; }
@@ -171,6 +182,34 @@ def privacidade():
     </body>
     </html>
     """
+    return html_content
+
+
+# ✅ PÁGINA DE EXCLUSÃO DE DADOS (CORRIGIDA COM HTMLResponse)
+@app.get("/exclusao-dados", response_class=HTMLResponse)
+def exclusao_dados():
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <title>Exclusão de Dados - Elo Ambientes Planejados</title>
+        <style>
+            body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+            h1 { color: #250366; }
+            .container { background: #f9f9f9; padding: 30px; border-radius: 10px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Exclusão de Dados do Usuário</h1>
+            <p>Para solicitar a exclusão dos seus dados pessoais do nosso sistema, envie um e-mail para <strong>contato@elo.ae</strong> com o assunto "Exclusão de Dados".</p>
+            <p>Nossa equipe processará sua solicitação em até 48 horas úteis.</p>
+        </div>
+    </body>
+    </html>
+    """
+    return html_content
 
 
 @app.get("/coexistencia", response_class=HTMLResponse)
@@ -203,6 +242,7 @@ def coexistencia():
         const CONFIG_ID = '{META_CONFIG_ID}';
         const WABA_ID = '{WABA_ID}';
         const PHONE_NUMBER_ID = '{WHATSAPP_PHONE_NUMBER_ID}';
+        const REDIRECT_URI = '{REDIRECT_URI}';
 
         let codigoAutorizacao = null;
         let accessTokenFacebook = null;
