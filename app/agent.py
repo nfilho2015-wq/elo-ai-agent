@@ -5,8 +5,11 @@ load_dotenv(override=True)
 
 from openai import OpenAI
 
+# ✅ CORREÇÃO CRÍTICA: A chave precisa estar no Render ou no .env
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+
+# ✅ CORREÇÃO CRÍTICA: Usar um modelo que realmente existe (e barato)
+MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 SYSTEM_PROMPT = '''
 Você é a assistente virtual da ELO Ambientes Planejados.
@@ -36,13 +39,18 @@ minimalista, premium, acolhedor, objetivo e sem excesso de emojis.
 '''
 
 def reply_to_customer(message: str, history: list[dict] | None = None) -> str:
-    history = history or []
-    input_items = [{"role": "system", "content": SYSTEM_PROMPT}]
-    input_items.extend(history[-10:])
-    input_items.append({"role": "user", "content": message})
+    try:
+        history = history or []
+        input_items = [{"role": "system", "content": SYSTEM_PROMPT}]
+        input_items.extend(history[-10:])
+        input_items.append({"role": "user", "content": message})
 
-    response = client.responses.create(
-        model=MODEL,
-        input=input_items
-    )
-    return response.output_text.strip()
+        response = client.responses.create(
+            model=MODEL,
+            input=input_items
+        )
+        return response.output_text.strip()
+    except Exception as erro:
+        # ✅ Se a IA falhar, retorna uma mensagem amigável para o cliente
+        print(f"❌ Erro na IA: {type(erro).__name__}: {erro}")
+        return "Olá! No momento estou com uma instabilidade técnica. Um consultor da ELO irá te atender em instantes. Obrigado!"
