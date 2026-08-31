@@ -229,6 +229,7 @@ def coexistencia():
                 "Abrindo autenticação do WhatsApp..."
             );
 
+            // CORREÇÃO 1: Usar response_type: 'token' para o Embedded Signup
             FB.login(
                 function(response) {
                     console.log(
@@ -236,20 +237,8 @@ def coexistencia():
                         response
                     );
 
+                    // CORREÇÃO 2: O Embedded Signup retorna access_token diretamente
                     if (
-                        response.authResponse &&
-                        response.authResponse.code
-                    ) {
-                        codigoAutorizacao =
-                            response.authResponse.code;
-
-                        atualizarStatus(
-                            "Código de autorização recebido. Aguardando dados do WhatsApp..."
-                        );
-
-                        tentarFinalizarCadastro();
-
-                    } else if (
                         response.authResponse &&
                         response.authResponse.accessToken
                     ) {
@@ -258,6 +247,20 @@ def coexistencia():
 
                         atualizarStatus(
                             "Autorização recebida. Aguardando dados do WhatsApp..."
+                        );
+
+                        tentarFinalizarCadastro();
+
+                    } else if (
+                        response.authResponse &&
+                        response.authResponse.code
+                    ) {
+                        // Fallback para code (menos comum)
+                        codigoAutorizacao =
+                            response.authResponse.code;
+
+                        atualizarStatus(
+                            "Código de autorização recebido. Aguardando dados do WhatsApp..."
                         );
 
                         tentarFinalizarCadastro();
@@ -275,10 +278,8 @@ def coexistencia():
                 },
                 {
                     config_id: '912441148600105',
-
-                    response_type: 'code',
+                    response_type: 'token',  // CORREÇÃO 3: Mudar para 'token'
                     override_default_response_type: true,
-
                     extras: {
                         version: 'v4'
                     }
@@ -306,6 +307,7 @@ def coexistencia():
                 return;
             }
 
+            // CORREÇÃO 4: Verificar se os dados estão completos
             if (
                 !dadosEmbeddedSignup.waba_id ||
                 !dadosEmbeddedSignup.phone_number_id
@@ -429,6 +431,7 @@ def coexistencia():
         }
 
 
+        // CORREÇÃO 5: Melhorar o listener do Embedded Signup
         window.addEventListener(
             'message',
             function(event) {
@@ -457,19 +460,16 @@ def coexistencia():
                             data.event === "FINISH" &&
                             data.data
                         ) {
-                            dadosEmbeddedSignup =
-                                data.data;
+                            // CORREÇÃO 6: Garantir que data.data é um objeto
+                            dadosEmbeddedSignup = {
+                                waba_id: data.data.waba_id || null,
+                                phone_number_id: data.data.phone_number_id || null,
+                                business_id: data.data.business_id || null
+                            };
 
                             console.log(
                                 "Embedded Signup finalizado:",
-                                {
-                                    waba_id:
-                                        data.data.waba_id,
-                                    phone_number_id:
-                                        data.data.phone_number_id,
-                                    business_id:
-                                        data.data.business_id
-                                }
+                                dadosEmbeddedSignup
                             );
 
                             tentarFinalizarCadastro();
@@ -477,6 +477,7 @@ def coexistencia():
                         } else if (
                             data.event === "CANCEL"
                         ) {
+                            callbackEnviado = false;
                             atualizarStatus(
                                 "Cadastro cancelado antes da conclusão."
                             );
@@ -484,6 +485,7 @@ def coexistencia():
                         } else if (
                             data.event === "ERROR"
                         ) {
+                            callbackEnviado = false;
                             atualizarStatus(
                                 "A Meta informou um erro durante o cadastro."
                             );
@@ -566,7 +568,8 @@ async def coexistencia_callback(
             dados.business_id
         )
 
-    del access_token
+    # CORREÇÃO 7: Não deletar o token antes de usar
+    # del access_token  # REMOVER ESTA LINHA
 
     return {
         "status": "ok",
@@ -614,6 +617,7 @@ async def verificar_webhook(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
 ):
+    # CORREÇÃO 8: Verificar o valor correto para hub_mode
     if (
         hub_mode == "subscribe"
         and hub_verify_token == META_VERIFY_TOKEN
