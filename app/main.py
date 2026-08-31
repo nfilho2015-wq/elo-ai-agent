@@ -16,10 +16,13 @@ from .agent import reply_to_customer
 from .meta import send_whatsapp_text
 
 
-META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN", "")
+# ✅ IDs REAIS DA ELO AMBIENTES PLANEJADOS
+META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN", "SEU_VERIFY_TOKEN_AQUI")
 META_APP_ID = os.getenv("META_APP_ID", "1748103033006020")
-META_APP_SECRET = os.getenv("META_APP_SECRET", "")
+META_APP_SECRET = os.getenv("META_APP_SECRET", "SEU_APP_SECRET_AQUI")
 META_GRAPH_VERSION = os.getenv("META_GRAPH_VERSION", "v23.0")
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "126595229667671")
+WABA_ID = os.getenv("WABA_ID", "1971509998688303")
 
 
 app = FastAPI(
@@ -47,6 +50,7 @@ def trocar_codigo_por_token(code: str) -> str:
     """
     Troca o código temporário do Facebook Login for Business por um
     access token no SERVIDOR.
+    O token nunca é devolvido ao navegador e nunca é gravado em log.
     """
     if not META_APP_SECRET:
         raise HTTPException(
@@ -63,10 +67,7 @@ def trocar_codigo_por_token(code: str) -> str:
         }
     )
 
-    url = (
-        f"https://graph.facebook.com/"
-        f"{META_GRAPH_VERSION}/oauth/access_token?{parametros}"
-    )
+    url = f"https://graph.facebook.com/{META_GRAPH_VERSION}/oauth/access_token?{parametros}"
 
     requisicao = urllib.request.Request(
         url,
@@ -85,7 +86,7 @@ def trocar_codigo_por_token(code: str) -> str:
         print(f"Meta recusou a troca do código. HTTP {erro.code}: {corpo}")
         raise HTTPException(
             status_code=502,
-            detail="A Meta recusou a troca do código de autorização."
+            detail="A Meta recusou a troca do código de autorização. Verifique o App ID, App Secret e a configuração do Facebook Login for Business."
         )
     except Exception as erro:
         print("Erro ao trocar código por token:", type(erro).__name__)
@@ -110,13 +111,15 @@ def home():
     return {
         "status": "online",
         "brand": "Elo Ambientes Planejados",
-        "service": "IA + Supabase"
+        "service": "IA + Supabase",
+        "waba_id": WABA_ID,
+        "phone_number_id": WHATSAPP_PHONE_NUMBER_ID
     }
 
 
 @app.get("/coexistencia", response_class=HTMLResponse)
 def coexistencia():
-    return """
+    return f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -139,21 +142,27 @@ def coexistencia():
     <p id="status" style="margin-top:20px;"></p>
 
     <script>
+        // ✅ IDs REAIS DA ELO
+        const APP_ID = '{META_APP_ID}';
+        const CONFIG_ID = 'SEU_CONFIG_ID_AQUI';  // ← VOCÊ PRECISA CRIAR/SUBSTITUIR
+        const WABA_ID = '{WABA_ID}';
+        const PHONE_NUMBER_ID = '{WHATSAPP_PHONE_NUMBER_ID}';
+
         let codigoAutorizacao = null;
         let accessTokenFacebook = null;
         let dadosEmbeddedSignup = null;
         let callbackEnviado = false;
 
-        window.fbAsyncInit = function() {
-            FB.init({
-                appId: '1748103033006020',
+        window.fbAsyncInit = function() {{
+            FB.init({{
+                appId: APP_ID,
                 autoLogAppEvents: true,
                 xfbml: true,
                 version: 'v23.0'
-            });
-        };
+            }});
+        }};
 
-        (function(d, s, id) {
+        (function(d, s, id) {{
             var js;
             var fjs = d.getElementsByTagName(s)[0];
             if (d.getElementById(id)) return;
@@ -161,13 +170,13 @@ def coexistencia():
             js.id = id;
             js.src = "https://connect.facebook.net/pt_BR/sdk.js";
             fjs.parentNode.insertBefore(js, fjs);
-        }(document, 'script', 'facebook-jssdk'));
+        }}(document, 'script', 'facebook-jssdk'));
 
-        function atualizarStatus(texto) {
+        function atualizarStatus(texto) {{
             document.getElementById("status").innerText = texto;
-        }
+        }}
 
-        function launchWhatsAppSignup() {
+        function launchWhatsAppSignup() {{
             callbackEnviado = false;
             codigoAutorizacao = null;
             accessTokenFacebook = null;
@@ -175,129 +184,128 @@ def coexistencia():
 
             atualizarStatus("Abrindo autenticação do WhatsApp...");
 
-            // ✅ CONFIG_ID ATUALIZADO
             FB.login(
-                function(response) {
+                function(response) {{
                     console.log("Resposta Facebook (callback):", response);
-                    if (response.status === 'connected') {
+                    if (response.status === 'connected') {{
                         atualizarStatus("Facebook conectado. Aguardando dados do WhatsApp...");
-                    } else {
+                    }} else {{
                         console.log("Aguardando evento do Embedded Signup...");
-                    }
-                },
-                {
-                    config_id: '1058570587087967',  // ✅ NOVO CONFIG_ID ATIVO
+                    }}
+                }},
+                {{
+                    config_id: CONFIG_ID,
                     response_type: 'code',
                     override_default_response_type: true,
-                    extras: {
+                    extras: {{
                         version: 'v4'
-                    }
-                }
+                    }}
+                }}
             );
-        }
+        }}
 
-        function tentarFinalizarCadastro() {
+        function tentarFinalizarCadastro() {{
             if (callbackEnviado) return;
-            if (!dadosEmbeddedSignup) {
+            if (!dadosEmbeddedSignup) {{
                 atualizarStatus("Aguardando conclusão do Cadastro Incorporado...");
                 return;
-            }
-            if (!dadosEmbeddedSignup.waba_id || !dadosEmbeddedSignup.phone_number_id) {
+            }}
+            if (!dadosEmbeddedSignup.waba_id || !dadosEmbeddedSignup.phone_number_id) {{
                 atualizarStatus("Cadastro concluído, mas a Meta não retornou WABA ID e Phone Number ID.");
                 console.log("Dados incompletos do Embedded Signup:", dadosEmbeddedSignup);
                 return;
-            }
+            }}
             processarAutorizacao(
                 codigoAutorizacao,
                 accessTokenFacebook,
                 dadosEmbeddedSignup
             );
-        }
+        }}
 
-        async function processarAutorizacao(code, accessToken, sessionData) {
+        async function processarAutorizacao(code, accessToken, sessionData) {{
             if (callbackEnviado) return;
             callbackEnviado = true;
             atualizarStatus("Validando com o servidor...");
 
-            try {
-                const payload = {};
-                if (accessToken) {
+            try {{
+                const payload = {{}};
+                if (accessToken) {{
                     payload.access_token = accessToken;
-                } else if (code) {
+                }} else if (code) {{
                     payload.code = code;
-                }
-                if (sessionData) {
+                }}
+                if (sessionData) {{
                     payload.waba_id = sessionData.waba_id || null;
                     payload.phone_number_id = sessionData.phone_number_id || null;
                     payload.business_id = sessionData.business_id || null;
-                }
+                }}
 
                 console.log("Enviando payload:", payload);
 
-                const retorno = await fetch('/coexistencia/callback', {
+                const retorno = await fetch('/coexistencia/callback', {{
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {{ 'Content-Type': 'application/json' }},
                     body: JSON.stringify(payload)
-                });
+                }});
 
                 const dados = await retorno.json();
                 console.log("Retorno backend:", dados);
 
-                if (retorno.ok) {
-                    let mensagem = dados.message || "Autorização validada com sucesso.";
-                    if (dados.waba_id || dados.phone_number_id) {
+                if (retorno.ok) {{
+                    let mensagem = dados.message || "✅ Autorização validada com sucesso!";
+                    if (dados.waba_id || dados.phone_number_id) {{
                         mensagem += " WABA: " + (dados.waba_id || "não informado") + 
                                    " | Phone Number ID: " + (dados.phone_number_id || "não informado");
-                    }
+                    }}
                     atualizarStatus("✅ " + mensagem);
-                } else {
+                }} else {{
                     callbackEnviado = false;
                     atualizarStatus("❌ " + (dados.detail || "Erro ao processar autorização."));
-                }
-            } catch (erro) {
+                }}
+            }} catch (erro) {{
                 callbackEnviado = false;
                 console.error("Erro ao enviar autorização:", erro);
                 atualizarStatus("❌ Erro ao enviar autorização para o servidor.");
-            }
-        }
+            }}
+        }}
 
-        window.addEventListener('message', function(event) {
+        window.addEventListener('message', function(event) {{
             if (event.origin !== "https://www.facebook.com") return;
 
-            try {
+            try {{
                 const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
                 console.log("Evento recebido:", data);
 
-                if (data && data.type === "WA_EMBEDDED_SIGNUP") {
-                    if (data.event === "FINISH" && data.data) {
-                        dadosEmbeddedSignup = {
+                if (data && data.type === "WA_EMBEDDED_SIGNUP") {{
+                    if (data.event === "FINISH" && data.data) {{
+                        dadosEmbeddedSignup = {{
                             waba_id: data.data.waba_id || null,
                             phone_number_id: data.data.phone_number_id || null,
                             business_id: data.data.business_id || null,
                             access_token: data.data.access_token || null
-                        };
+                        }};
 
-                        if (dadosEmbeddedSignup.access_token) {
+                        if (dadosEmbeddedSignup.access_token) {{
                             accessTokenFacebook = dadosEmbeddedSignup.access_token;
                             console.log("Access token recebido via Embedded Signup");
-                        }
+                        }}
 
                         console.log("Embedded Signup finalizado:", dadosEmbeddedSignup);
                         atualizarStatus("Cadastro concluído! Validando...");
                         tentarFinalizarCadastro();
-                    } else if (data.event === "CANCEL") {
+                    }} else if (data.event === "CANCEL") {{
                         callbackEnviado = false;
                         atualizarStatus("❌ Cadastro cancelado.");
-                    } else if (data.event === "ERROR") {
+                    }} else if (data.event === "ERROR") {{
                         callbackEnviado = false;
                         atualizarStatus("❌ Erro no cadastro.");
                         console.log("Erro Embedded Signup:", data.data);
-                    }
-                }
-            } catch (erro) {
+                    }}
+                }}
+            }} catch (erro) {{
                 console.log("Evento não-JSON recebido:", event.data);
-            }
-        });
+            }}
+        }});
     </script>
 
 </body>
@@ -330,11 +338,11 @@ async def coexistencia_callback(dados: CoexistenciaCallback):
         )
 
     if dados.waba_id:
-        print("WABA ID recebido:", dados.waba_id)
+        print("✅ WABA ID recebido:", dados.waba_id)
     if dados.phone_number_id:
-        print("Phone Number ID recebido:", dados.phone_number_id)
+        print("✅ Phone Number ID recebido:", dados.phone_number_id)
     if dados.business_id:
-        print("Business ID recebido:", dados.business_id)
+        print("✅ Business ID recebido:", dados.business_id)
 
     return {
         "status": "ok",
