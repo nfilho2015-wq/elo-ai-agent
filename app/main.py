@@ -47,10 +47,7 @@ def trocar_codigo_por_token(code: str) -> str:
     """
     Troca o código temporário do Facebook Login for Business por um
     access token no SERVIDOR.
-
-    O token nunca é devolvido ao navegador e nunca é gravado em log.
     """
-
     if not META_APP_SECRET:
         raise HTTPException(
             status_code=500,
@@ -81,53 +78,25 @@ def trocar_codigo_por_token(code: str) -> str:
     )
 
     try:
-        with urllib.request.urlopen(
-            requisicao,
-            timeout=20
-        ) as resposta:
-            dados = json.loads(
-                resposta.read().decode("utf-8")
-            )
-
+        with urllib.request.urlopen(requisicao, timeout=20) as resposta:
+            dados = json.loads(resposta.read().decode("utf-8"))
     except urllib.error.HTTPError as erro:
-        corpo = erro.read().decode(
-            "utf-8",
-            errors="replace"
-        )
-
-        print(
-            "Meta recusou a troca do código. "
-            f"HTTP {erro.code}: {corpo}"
-        )
-
+        corpo = erro.read().decode("utf-8", errors="replace")
+        print(f"Meta recusou a troca do código. HTTP {erro.code}: {corpo}")
         raise HTTPException(
             status_code=502,
-            detail=(
-                "A Meta recusou a troca do código de autorização. "
-                "Verifique o App ID, App Secret e a configuração "
-                "do Facebook Login for Business."
-            ),
+            detail="A Meta recusou a troca do código de autorização."
         )
-
     except Exception as erro:
-        print(
-            "Erro ao trocar código por token:",
-            type(erro).__name__,
-        )
-
+        print("Erro ao trocar código por token:", type(erro).__name__)
         raise HTTPException(
             status_code=502,
             detail="Não foi possível comunicar com a Meta."
         )
 
     access_token = dados.get("access_token")
-
     if not access_token:
-        print(
-            "Resposta da Meta sem access_token. "
-            f"Campos recebidos: {list(dados.keys())}"
-        )
-
+        print(f"Resposta da Meta sem access_token. Campos: {list(dados.keys())}")
         raise HTTPException(
             status_code=502,
             detail="A Meta não retornou um token de acesso."
@@ -158,22 +127,11 @@ def coexistencia():
 <body style="font-family:Arial; max-width:700px; margin:60px auto; text-align:center;">
 
     <h2>Elo Ambientes Planejados</h2>
-
-    <p>
-        Vincular WhatsApp Business com a Elo IA
-    </p>
+    <p>Vincular WhatsApp Business com a Elo IA</p>
 
     <button
         onclick="launchWhatsAppSignup()"
-        style="
-            background:#25D366;
-            color:white;
-            border:none;
-            padding:15px 25px;
-            font-size:17px;
-            border-radius:8px;
-            cursor:pointer;
-        "
+        style="background:#25D366; color:white; border:none; padding:15px 25px; font-size:17px; border-radius:8px; cursor:pointer;"
     >
         Conectar WhatsApp Business
     </button>
@@ -186,7 +144,6 @@ def coexistencia():
         let dadosEmbeddedSignup = null;
         let callbackEnviado = false;
 
-
         window.fbAsyncInit = function() {
             FB.init({
                 appId: '1748103033006020',
@@ -196,28 +153,19 @@ def coexistencia():
             });
         };
 
-
         (function(d, s, id) {
             var js;
             var fjs = d.getElementsByTagName(s)[0];
-
-            if (d.getElementById(id)) {
-                return;
-            }
-
+            if (d.getElementById(id)) return;
             js = d.createElement(s);
             js.id = id;
             js.src = "https://connect.facebook.net/pt_BR/sdk.js";
-
             fjs.parentNode.insertBefore(js, fjs);
-
         }(document, 'script', 'facebook-jssdk'));
-
 
         function atualizarStatus(texto) {
             document.getElementById("status").innerText = texto;
         }
-
 
         function launchWhatsAppSignup() {
             callbackEnviado = false;
@@ -225,34 +173,20 @@ def coexistencia():
             accessTokenFacebook = null;
             dadosEmbeddedSignup = null;
 
-            atualizarStatus(
-                "Abrindo autenticação do WhatsApp..."
-            );
+            atualizarStatus("Abrindo autenticação do WhatsApp...");
 
-            // CORREÇÃO: Para Embedded Signup, o FB.login NÃO retorna authResponse
-            // O fluxo depende do listener de postMessage
+            // ✅ CONFIG_ID ATUALIZADO
             FB.login(
                 function(response) {
-                    console.log(
-                        "Resposta Facebook (callback):",
-                        response
-                    );
-
-                    // O Embedded Signup pode retornar status: 'connected'
-                    // mas o token vem via postMessage, não aqui
+                    console.log("Resposta Facebook (callback):", response);
                     if (response.status === 'connected') {
-                        atualizarStatus(
-                            "Facebook conectado. Aguardando dados do WhatsApp..."
-                        );
+                        atualizarStatus("Facebook conectado. Aguardando dados do WhatsApp...");
                     } else {
-                        // Não é um erro, apenas aguardar o postMessage
-                        console.log(
-                            "Aguardando evento do Embedded Signup..."
-                        );
+                        console.log("Aguardando evento do Embedded Signup...");
                     }
                 },
                 {
-                    config_id: '912441148600105',
+                    config_id: '1058570587087967',  // ✅ NOVO CONFIG_ID ATIVO
                     response_type: 'code',
                     override_default_response_type: true,
                     extras: {
@@ -262,38 +196,17 @@ def coexistencia():
             );
         }
 
-
         function tentarFinalizarCadastro() {
-            if (callbackEnviado) {
-                return;
-            }
-
-            // CORREÇÃO: Verificar se temos os dados do Embedded Signup
+            if (callbackEnviado) return;
             if (!dadosEmbeddedSignup) {
-                atualizarStatus(
-                    "Aguardando conclusão do Cadastro Incorporado..."
-                );
+                atualizarStatus("Aguardando conclusão do Cadastro Incorporado...");
                 return;
             }
-
-            // CORREÇÃO: Verificar se os dados estão completos
-            if (
-                !dadosEmbeddedSignup.waba_id ||
-                !dadosEmbeddedSignup.phone_number_id
-            ) {
-                atualizarStatus(
-                    "Cadastro concluído, mas a Meta não retornou WABA ID e Phone Number ID."
-                );
-
-                console.log(
-                    "Dados incompletos do Embedded Signup:",
-                    dadosEmbeddedSignup
-                );
-
+            if (!dadosEmbeddedSignup.waba_id || !dadosEmbeddedSignup.phone_number_id) {
+                atualizarStatus("Cadastro concluído, mas a Meta não retornou WABA ID e Phone Number ID.");
+                console.log("Dados incompletos do Embedded Signup:", dadosEmbeddedSignup);
                 return;
             }
-
-            // Temos os dados, agora processar
             processarAutorizacao(
                 codigoAutorizacao,
                 accessTokenFacebook,
@@ -301,32 +214,18 @@ def coexistencia():
             );
         }
 
-
-        async function processarAutorizacao(
-            code,
-            accessToken,
-            sessionData
-        ) {
-            if (callbackEnviado) {
-                return;
-            }
-
+        async function processarAutorizacao(code, accessToken, sessionData) {
+            if (callbackEnviado) return;
             callbackEnviado = true;
-
-            atualizarStatus(
-                "Validando com o servidor..."
-            );
+            atualizarStatus("Validando com o servidor...");
 
             try {
                 const payload = {};
-
-                // CORREÇÃO: Priorizar o access_token do postMessage
                 if (accessToken) {
                     payload.access_token = accessToken;
                 } else if (code) {
                     payload.code = code;
                 }
-
                 if (sessionData) {
                     payload.waba_id = sessionData.waba_id || null;
                     payload.phone_number_id = sessionData.phone_number_id || null;
@@ -335,36 +234,26 @@ def coexistencia():
 
                 console.log("Enviando payload:", payload);
 
-                const retorno = await fetch(
-                    '/coexistencia/callback',
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(payload)
-                    }
-                );
+                const retorno = await fetch('/coexistencia/callback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
                 const dados = await retorno.json();
-
                 console.log("Retorno backend:", dados);
 
                 if (retorno.ok) {
                     let mensagem = dados.message || "Autorização validada com sucesso.";
-
                     if (dados.waba_id || dados.phone_number_id) {
                         mensagem += " WABA: " + (dados.waba_id || "não informado") + 
                                    " | Phone Number ID: " + (dados.phone_number_id || "não informado");
                     }
-
                     atualizarStatus("✅ " + mensagem);
-
                 } else {
                     callbackEnviado = false;
                     atualizarStatus("❌ " + (dados.detail || "Erro ao processar autorização."));
                 }
-
             } catch (erro) {
                 callbackEnviado = false;
                 console.error("Erro ao enviar autorização:", erro);
@@ -372,26 +261,15 @@ def coexistencia():
             }
         }
 
-
-        // CORREÇÃO: Listener principal para Embedded Signup
         window.addEventListener('message', function(event) {
-            // Verificar se a mensagem vem do Facebook
-            if (event.origin !== "https://www.facebook.com") {
-                return;
-            }
+            if (event.origin !== "https://www.facebook.com") return;
 
             try {
-                const data = typeof event.data === "string" 
-                    ? JSON.parse(event.data) 
-                    : event.data;
-
+                const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
                 console.log("Evento recebido:", data);
 
-                // CORREÇÃO: Processar evento WA_EMBEDDED_SIGNUP
                 if (data && data.type === "WA_EMBEDDED_SIGNUP") {
-                    
                     if (data.event === "FINISH" && data.data) {
-                        // CORREÇÃO: Extrair todos os dados disponíveis
                         dadosEmbeddedSignup = {
                             waba_id: data.data.waba_id || null,
                             phone_number_id: data.data.phone_number_id || null,
@@ -399,7 +277,6 @@ def coexistencia():
                             access_token: data.data.access_token || null
                         };
 
-                        // CORREÇÃO: Se veio access_token no evento, guardar
                         if (dadosEmbeddedSignup.access_token) {
                             accessTokenFacebook = dadosEmbeddedSignup.access_token;
                             console.log("Access token recebido via Embedded Signup");
@@ -408,23 +285,19 @@ def coexistencia():
                         console.log("Embedded Signup finalizado:", dadosEmbeddedSignup);
                         atualizarStatus("Cadastro concluído! Validando...");
                         tentarFinalizarCadastro();
-
                     } else if (data.event === "CANCEL") {
                         callbackEnviado = false;
                         atualizarStatus("❌ Cadastro cancelado.");
-
                     } else if (data.event === "ERROR") {
                         callbackEnviado = false;
                         atualizarStatus("❌ Erro no cadastro.");
                         console.log("Erro Embedded Signup:", data.data);
                     }
                 }
-
             } catch (erro) {
                 console.log("Evento não-JSON recebido:", event.data);
             }
         });
-
     </script>
 
 </body>
@@ -433,9 +306,7 @@ def coexistencia():
 
 
 @app.post("/coexistencia/callback")
-async def coexistencia_callback(
-    dados: CoexistenciaCallback
-):
+async def coexistencia_callback(dados: CoexistenciaCallback):
     if not dados.code and not dados.access_token:
         raise HTTPException(
             status_code=400,
@@ -445,23 +316,11 @@ async def coexistencia_callback(
     access_token = None
 
     if dados.code:
-        print(
-            "Código de autorização do Embedded Signup recebido."
-        )
-
-        access_token = trocar_codigo_por_token(
-            dados.code
-        )
-
-        print(
-            "Código trocado por access token com sucesso."
-        )
-
+        print("Código de autorização do Embedded Signup recebido.")
+        access_token = trocar_codigo_por_token(dados.code)
+        print("Código trocado por access token com sucesso.")
     elif dados.access_token:
-        print(
-            "Access token recebido diretamente pelo Facebook Login."
-        )
-
+        print("Access token recebido diretamente pelo Facebook Login.")
         access_token = dados.access_token
 
     if not access_token:
@@ -471,26 +330,11 @@ async def coexistencia_callback(
         )
 
     if dados.waba_id:
-        print(
-            "WABA ID recebido:",
-            dados.waba_id
-        )
-
+        print("WABA ID recebido:", dados.waba_id)
     if dados.phone_number_id:
-        print(
-            "Phone Number ID recebido:",
-            dados.phone_number_id
-        )
-
+        print("Phone Number ID recebido:", dados.phone_number_id)
     if dados.business_id:
-        print(
-            "Business ID recebido:",
-            dados.business_id
-        )
-
-    # CORREÇÃO: NÃO deletar o token antes de usar
-    # O token deve ser salvo para uso futuro
-    print("Access token obtido com sucesso (não será exposto)")
+        print("Business ID recebido:", dados.business_id)
 
     return {
         "status": "ok",
@@ -502,9 +346,7 @@ async def coexistencia_callback(
 
 
 @app.post("/teste/mensagem")
-def teste_mensagem(
-    dados: MensagemTeste
-):
+def teste_mensagem(dados: MensagemTeste):
     registro = registrar_mensagem(
         telefone=dados.telefone,
         mensagem=dados.mensagem,
@@ -513,9 +355,7 @@ def teste_mensagem(
         external_id=dados.telefone
     )
 
-    resposta = reply_to_customer(
-        dados.mensagem
-    )
+    resposta = reply_to_customer(dados.mensagem)
 
     salvar_conversa(
         lead_id=registro["lead_id"],
@@ -538,79 +378,44 @@ async def verificar_webhook(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
 ):
-    if (
-        hub_mode == "subscribe"
-        and hub_verify_token == META_VERIFY_TOKEN
-    ):
-        return Response(
-            content=hub_challenge,
-            media_type="text/plain"
-        )
-
-    raise HTTPException(
-        status_code=403,
-        detail="Token de verificacao invalido"
-    )
+    if hub_mode == "subscribe" and hub_verify_token == META_VERIFY_TOKEN:
+        return Response(content=hub_challenge, media_type="text/plain")
+    raise HTTPException(status_code=403, detail="Token de verificacao invalido")
 
 
 @app.post("/webhook")
-async def receber_webhook(
-    request: Request
-):
+async def receber_webhook(request: Request):
     payload = await request.json()
 
     try:
         entry = payload.get("entry", [])
-
         if not entry:
             return {"status": "ok"}
 
         changes = entry[0].get("changes", [])
-
         if not changes:
             return {"status": "ok"}
 
         value = changes[0].get("value", {})
-
         messages = value.get("messages", [])
-
         if not messages:
             return {"status": "ok"}
 
         message = messages[0]
-
         telefone = message.get("from")
         tipo = message.get("type")
 
         if tipo != "text":
             return {"status": "ok"}
 
-        texto = message.get(
-            "text",
-            {}
-        ).get(
-            "body",
-            ""
-        )
-
+        texto = message.get("text", {}).get("body", "")
         if not texto:
             return {"status": "ok"}
 
-        resposta = reply_to_customer(
-            texto
-        )
-
-        await send_whatsapp_text(
-            telefone,
-            resposta
-        )
+        resposta = reply_to_customer(texto)
+        await send_whatsapp_text(telefone, resposta)
 
     except Exception as erro:
-        print(
-            "Erro no webhook:",
-            erro
-        )
+        print("Erro no webhook:", erro)
 
-    return {
-        "status": "ok"
-    }
+    return {"status": "ok"}
