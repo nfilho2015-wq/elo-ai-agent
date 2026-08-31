@@ -274,17 +274,13 @@ def coexistencia():
                     }
                 },
                 {
-                    config_id: '1414583593977374',
-
-                    scope: 'business_management,whatsapp_business_management,whatsapp_business_messaging',
+                    config_id: '912441148600105',
 
                     response_type: 'code',
                     override_default_response_type: true,
 
                     extras: {
-                        setup: {},
-                        featureType: 'whatsapp_business_app_onboarding',
-                        sessionInfoVersion: '3'
+                        version: 'v4'
                     }
                 }
             );
@@ -304,23 +300,23 @@ def coexistencia():
             }
 
             if (!dadosEmbeddedSignup) {
-                setTimeout(
-                    function() {
-                        if (
-                            (
-                                codigoAutorizacao ||
-                                accessTokenFacebook
-                            ) &&
-                            !callbackEnviado
-                        ) {
-                            processarAutorizacao(
-                                codigoAutorizacao,
-                                accessTokenFacebook,
-                                null
-                            );
-                        }
-                    },
-                    1800
+                atualizarStatus(
+                    "Autorização recebida. Aguardando conclusão do Cadastro Incorporado..."
+                );
+                return;
+            }
+
+            if (
+                !dadosEmbeddedSignup.waba_id ||
+                !dadosEmbeddedSignup.phone_number_id
+            ) {
+                atualizarStatus(
+                    "Cadastro concluído, mas a Meta não retornou WABA ID e Phone Number ID."
+                );
+
+                console.log(
+                    "Dados incompletos do Embedded Signup:",
+                    dadosEmbeddedSignup
                 );
 
                 return;
