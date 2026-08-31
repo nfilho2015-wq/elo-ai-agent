@@ -16,14 +16,14 @@ from .agent import reply_to_customer
 from .meta import send_whatsapp_text
 
 
-# ✅ IDs REAIS DA ELO AMBIENTES PLANEJADOS
+# ✅ IDs DO NOVO APP - ELO IA AGENT
 META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN", "EloVerifyToken2026")
-META_APP_ID = os.getenv("META_APP_ID", "1748103033006020")
-META_APP_SECRET = os.getenv("META_APP_SECRET", "7c95bd1c86c4f5e4f296cfb9acb040c2")
-META_CONFIG_ID = os.getenv("META_CONFIG_ID", "1414583593977374")
+META_APP_ID = os.getenv("META_APP_ID", "1366188178520853")
+META_APP_SECRET = os.getenv("META_APP_SECRET", "508e9e81ee7f8d8c1d9e647f9eaac7d9")
+META_CONFIG_ID = os.getenv("META_CONFIG_ID", "1026814117069301")
 META_GRAPH_VERSION = os.getenv("META_GRAPH_VERSION", "v23.0")
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1265952296607671")
-WABA_ID = os.getenv("WABA_ID", "1971509998688303")
+WABA_ID = os.getenv("WABA_ID", "197150899688303")
 
 
 app = FastAPI(
@@ -198,7 +198,7 @@ def coexistencia():
     <p id="status" style="margin-top:20px;"></p>
 
     <script>
-        // ✅ IDs REAIS DA ELO
+        // ✅ IDs DO NOVO APP
         const APP_ID = '{META_APP_ID}';
         const CONFIG_ID = '{META_CONFIG_ID}';
         const WABA_ID = '{WABA_ID}';
@@ -262,12 +262,10 @@ def coexistencia():
 
             console.log("🚀 Iniciando FB.login com config_id:", CONFIG_ID);
 
-            // ✅ AJUSTE: response_type = 'code' (correto para Embedded Signup)
             FB.login(
                 function(response) {{
                     console.log("📱 Resposta Facebook (callback):", response);
                     
-                    // ✅ CAPTURA O CÓDIGO DE AUTORIZAÇÃO
                     if (response.authResponse && response.authResponse.code) {{
                         codigoAutorizacao = response.authResponse.code;
                         console.log("✅ Código de autorização recebido:", codigoAutorizacao);
@@ -283,7 +281,7 @@ def coexistencia():
                 }},
                 {{
                     config_id: CONFIG_ID,
-                    response_type: 'code',  // ✅ CORRETO PARA EMBEDDED SIGNUP
+                    response_type: 'code',
                     override_default_response_type: true,
                     extras: {{
                         version: 'v4'
@@ -295,7 +293,6 @@ def coexistencia():
         function tentarFinalizarCadastro() {{
             if (callbackEnviado) return;
             
-            // ✅ VERIFICA SE TEM O CÓDIGO DE AUTORIZAÇÃO
             if (!codigoAutorizacao && !accessTokenFacebook) {{
                 atualizarStatus("⏳ Aguardando código de autorização...");
                 return;
@@ -328,7 +325,6 @@ def coexistencia():
             try {{
                 const payload = {{}};
                 
-                // ✅ PRIORIZA O CÓDIGO (que é trocado no servidor)
                 if (code) {{
                     payload.code = code;
                 }} else if (accessToken) {{
@@ -411,7 +407,6 @@ def coexistencia():
                     }}
                 }}
                 
-                // ✅ TAMBÉM CAPTURA EVENTOS DE AUTORIZAÇÃO SEPARADOS
                 if (data && data.type === "FB_AUTHORIZATION" && data.data && data.data.code) {{
                     codigoAutorizacao = data.data.code;
                     console.log("✅ Código de autorização recebido via evento:", codigoAutorizacao);
