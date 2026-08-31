@@ -229,56 +229,31 @@ def coexistencia():
                 "Abrindo autenticação do WhatsApp..."
             );
 
-            // CORREÇÃO 1: Usar response_type: 'token' para o Embedded Signup
+            // CORREÇÃO: Para Embedded Signup, o FB.login NÃO retorna authResponse
+            // O fluxo depende do listener de postMessage
             FB.login(
                 function(response) {
                     console.log(
-                        "Resposta Facebook:",
+                        "Resposta Facebook (callback):",
                         response
                     );
 
-                    // CORREÇÃO 2: O Embedded Signup retorna access_token diretamente
-                    if (
-                        response.authResponse &&
-                        response.authResponse.accessToken
-                    ) {
-                        accessTokenFacebook =
-                            response.authResponse.accessToken;
-
+                    // O Embedded Signup pode retornar status: 'connected'
+                    // mas o token vem via postMessage, não aqui
+                    if (response.status === 'connected') {
                         atualizarStatus(
-                            "Autorização recebida. Aguardando dados do WhatsApp..."
+                            "Facebook conectado. Aguardando dados do WhatsApp..."
                         );
-
-                        tentarFinalizarCadastro();
-
-                    } else if (
-                        response.authResponse &&
-                        response.authResponse.code
-                    ) {
-                        // Fallback para code (menos comum)
-                        codigoAutorizacao =
-                            response.authResponse.code;
-
-                        atualizarStatus(
-                            "Código de autorização recebido. Aguardando dados do WhatsApp..."
-                        );
-
-                        tentarFinalizarCadastro();
-
                     } else {
-                        atualizarStatus(
-                            "O Facebook não retornou uma autorização válida."
-                        );
-
+                        // Não é um erro, apenas aguardar o postMessage
                         console.log(
-                            "Login sem autorização:",
-                            response
+                            "Aguardando evento do Embedded Signup..."
                         );
                     }
                 },
                 {
                     config_id: '912441148600105',
-                    response_type: 'token',  // CORREÇÃO 3: Mudar para 'token'
+                    response_type: 'code',
                     override_default_response_type: true,
                     extras: {
                         version: 'v4'
@@ -293,21 +268,15 @@ def coexistencia():
                 return;
             }
 
-            if (
-                !codigoAutorizacao &&
-                !accessTokenFacebook
-            ) {
-                return;
-            }
-
+            // CORREÇÃO: Verificar se temos os dados do Embedded Signup
             if (!dadosEmbeddedSignup) {
                 atualizarStatus(
-                    "Autorização recebida. Aguardando conclusão do Cadastro Incorporado..."
+                    "Aguardando conclusão do Cadastro Incorporado..."
                 );
                 return;
             }
 
-            // CORREÇÃO 4: Verificar se os dados estão completos
+            // CORREÇÃO: Verificar se os dados estão completos
             if (
                 !dadosEmbeddedSignup.waba_id ||
                 !dadosEmbeddedSignup.phone_number_id
@@ -324,6 +293,7 @@ def coexistencia():
                 return;
             }
 
+            // Temos os dados, agora processar
             processarAutorizacao(
                 codigoAutorizacao,
                 accessTokenFacebook,
@@ -344,167 +314,117 @@ def coexistencia():
             callbackEnviado = true;
 
             atualizarStatus(
-                "Autorização recebida. Validando com a Meta..."
+                "Validando com o servidor..."
             );
 
             try {
                 const payload = {};
 
-                if (code) {
+                // CORREÇÃO: Priorizar o access_token do postMessage
+                if (accessToken) {
+                    payload.access_token = accessToken;
+                } else if (code) {
                     payload.code = code;
                 }
 
-                if (accessToken) {
-                    payload.access_token = accessToken;
-                }
-
                 if (sessionData) {
-                    payload.waba_id =
-                        sessionData.waba_id || null;
-
-                    payload.phone_number_id =
-                        sessionData.phone_number_id || null;
-
-                    payload.business_id =
-                        sessionData.business_id || null;
+                    payload.waba_id = sessionData.waba_id || null;
+                    payload.phone_number_id = sessionData.phone_number_id || null;
+                    payload.business_id = sessionData.business_id || null;
                 }
+
+                console.log("Enviando payload:", payload);
 
                 const retorno = await fetch(
                     '/coexistencia/callback',
                     {
                         method: 'POST',
-
                         headers: {
                             'Content-Type': 'application/json'
                         },
-
                         body: JSON.stringify(payload)
                     }
                 );
 
                 const dados = await retorno.json();
 
-                console.log(
-                    "Retorno backend:",
-                    dados
-                );
+                console.log("Retorno backend:", dados);
 
                 if (retorno.ok) {
-                    let mensagem =
-                        dados.message ||
-                        "Autorização validada com sucesso.";
+                    let mensagem = dados.message || "Autorização validada com sucesso.";
 
-                    if (
-                        dados.waba_id ||
-                        dados.phone_number_id
-                    ) {
-                        mensagem +=
-                            " WABA: " +
-                            (dados.waba_id || "não informado") +
-                            " | Phone Number ID: " +
-                            (dados.phone_number_id || "não informado");
+                    if (dados.waba_id || dados.phone_number_id) {
+                        mensagem += " WABA: " + (dados.waba_id || "não informado") + 
+                                   " | Phone Number ID: " + (dados.phone_number_id || "não informado");
                     }
 
-                    atualizarStatus(mensagem);
+                    atualizarStatus("✅ " + mensagem);
 
                 } else {
                     callbackEnviado = false;
-
-                    atualizarStatus(
-                        dados.detail ||
-                        "Erro ao processar autorização."
-                    );
+                    atualizarStatus("❌ " + (dados.detail || "Erro ao processar autorização."));
                 }
 
             } catch (erro) {
                 callbackEnviado = false;
-
-                console.error(
-                    "Erro ao enviar autorização:",
-                    erro
-                );
-
-                atualizarStatus(
-                    "Erro ao enviar autorização para o servidor."
-                );
+                console.error("Erro ao enviar autorização:", erro);
+                atualizarStatus("❌ Erro ao enviar autorização para o servidor.");
             }
         }
 
 
-        // CORREÇÃO 5: Melhorar o listener do Embedded Signup
-        window.addEventListener(
-            'message',
-            function(event) {
-                if (
-                    event.origin !== "https://www.facebook.com"
-                ) {
-                    return;
-                }
-
-                try {
-                    const data =
-                        typeof event.data === "string"
-                            ? JSON.parse(event.data)
-                            : event.data;
-
-                    console.log(
-                        "Evento Embedded Signup:",
-                        data
-                    );
-
-                    if (
-                        data &&
-                        data.type === "WA_EMBEDDED_SIGNUP"
-                    ) {
-                        if (
-                            data.event === "FINISH" &&
-                            data.data
-                        ) {
-                            // CORREÇÃO 6: Garantir que data.data é um objeto
-                            dadosEmbeddedSignup = {
-                                waba_id: data.data.waba_id || null,
-                                phone_number_id: data.data.phone_number_id || null,
-                                business_id: data.data.business_id || null
-                            };
-
-                            console.log(
-                                "Embedded Signup finalizado:",
-                                dadosEmbeddedSignup
-                            );
-
-                            tentarFinalizarCadastro();
-
-                        } else if (
-                            data.event === "CANCEL"
-                        ) {
-                            callbackEnviado = false;
-                            atualizarStatus(
-                                "Cadastro cancelado antes da conclusão."
-                            );
-
-                        } else if (
-                            data.event === "ERROR"
-                        ) {
-                            callbackEnviado = false;
-                            atualizarStatus(
-                                "A Meta informou um erro durante o cadastro."
-                            );
-
-                            console.log(
-                                "Erro Embedded Signup:",
-                                data.data
-                            );
-                        }
-                    }
-
-                } catch (erro) {
-                    console.log(
-                        "Evento recebido:",
-                        event.data
-                    );
-                }
+        // CORREÇÃO: Listener principal para Embedded Signup
+        window.addEventListener('message', function(event) {
+            // Verificar se a mensagem vem do Facebook
+            if (event.origin !== "https://www.facebook.com") {
+                return;
             }
-        );
+
+            try {
+                const data = typeof event.data === "string" 
+                    ? JSON.parse(event.data) 
+                    : event.data;
+
+                console.log("Evento recebido:", data);
+
+                // CORREÇÃO: Processar evento WA_EMBEDDED_SIGNUP
+                if (data && data.type === "WA_EMBEDDED_SIGNUP") {
+                    
+                    if (data.event === "FINISH" && data.data) {
+                        // CORREÇÃO: Extrair todos os dados disponíveis
+                        dadosEmbeddedSignup = {
+                            waba_id: data.data.waba_id || null,
+                            phone_number_id: data.data.phone_number_id || null,
+                            business_id: data.data.business_id || null,
+                            access_token: data.data.access_token || null
+                        };
+
+                        // CORREÇÃO: Se veio access_token no evento, guardar
+                        if (dadosEmbeddedSignup.access_token) {
+                            accessTokenFacebook = dadosEmbeddedSignup.access_token;
+                            console.log("Access token recebido via Embedded Signup");
+                        }
+
+                        console.log("Embedded Signup finalizado:", dadosEmbeddedSignup);
+                        atualizarStatus("Cadastro concluído! Validando...");
+                        tentarFinalizarCadastro();
+
+                    } else if (data.event === "CANCEL") {
+                        callbackEnviado = false;
+                        atualizarStatus("❌ Cadastro cancelado.");
+
+                    } else if (data.event === "ERROR") {
+                        callbackEnviado = false;
+                        atualizarStatus("❌ Erro no cadastro.");
+                        console.log("Erro Embedded Signup:", data.data);
+                    }
+                }
+
+            } catch (erro) {
+                console.log("Evento não-JSON recebido:", event.data);
+            }
+        });
+
     </script>
 
 </body>
@@ -568,8 +488,9 @@ async def coexistencia_callback(
             dados.business_id
         )
 
-    # CORREÇÃO 7: Não deletar o token antes de usar
-    # del access_token  # REMOVER ESTA LINHA
+    # CORREÇÃO: NÃO deletar o token antes de usar
+    # O token deve ser salvo para uso futuro
+    print("Access token obtido com sucesso (não será exposto)")
 
     return {
         "status": "ok",
@@ -617,7 +538,6 @@ async def verificar_webhook(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
 ):
-    # CORREÇÃO 8: Verificar o valor correto para hub_mode
     if (
         hub_mode == "subscribe"
         and hub_verify_token == META_VERIFY_TOKEN
