@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .database import registrar_mensagem, salvar_conversa, get_conversation_history, enviar_notificacao_consultor
+from .database import registrar_mensagem, salvar_conversa, get_conversation_history
 from .agent import reply_to_customer
 from .meta import send_whatsapp_text
 
@@ -60,7 +60,7 @@ class CoexistenciaCallback(BaseModel):
 
 
 def trocar_codigo_por_token(code: str) -> str:
-    """Troca o código do Facebook por an access token no servidor."""
+    """Troca o código do Facebook por um access token no servidor."""
     if not META_APP_SECRET or not META_APP_ID:
         raise HTTPException(status_code=500, detail="Credenciais da Meta não configuradas.")
 
@@ -277,14 +277,6 @@ async def receber_webhook(request: Request):
 
         # ✅ Salva a resposta da IA
         salvar_conversa(lead_id=registro["lead_id"], canal="whatsapp", remetente="ia", mensagem=resposta)
-        
-        # ✅ Envia um e-mail para o consultor quando o lead for qualificado
-        enviar_notificacao_consultor(
-            lead_id=registro["lead_id"],
-            nome=texto,
-            ambiente="sala",  # Substitua pela variável que contém o ambiente
-            telefone=telefone
-        )
         
         # ✅ Envia a resposta de volta ao cliente
         await send_whatsapp_text(telefone, resposta)
